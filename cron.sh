@@ -1,0 +1,52 @@
+#!/bin/bash
+#
+# JournalList.net cron shell script.
+# 
+# Name - cron.sh
+# Synopsis - cron.sh [DIRNAME]
+#   DIRNAME - optional, the directory in which to place results. Default DIRNAME is "Webcrawl-YYYY-MM-DD".
+#
+#-------------------------------------
+#
+# Set DIRNAME
+#
+if [ $# == 1 ]
+then
+    DIRNAME=$1
+else
+    DIRNAME=( $(date "+Webcrawl-%Y-%m-%d") )
+fi
+#
+# If the directory doesn't already exist. Run the python webcrawler.
+#
+if [ ! -d $DIRNAME ]
+then
+    python3.10 webcrawler.py
+fi
+#
+# Process the results of the webcrawler to generate the symmetric links, association, publisher, and vendor .csv files.
+#
+echo ".import $DIRNAME/$DIRNAME.csv trust_txt" > temp.sql
+echo ".read symmetric.sql" >> temp.sql
+echo ".output $DIRNAME/$DIRNAME-symmetric.csv" >> temp.sql
+echo "select * from symmetric_list;" >> temp.sql
+echo ".output $DIRNAME/$DIRNAME-associations.csv" >> temp.sql
+echo "select * from associations_list;" >> temp.sql
+echo ".output $DIRNAME/$DIRNAME-publishers.csv" >> temp.sql
+echo "select * from publishers_list;" >> temp.sql
+echo ".output $DIRNAME/$DIRNAME-vendors.csv" >> temp.sql
+echo "select * from vendors_list;" >> temp.sql
+echo ".quit" >> temp.sql
+#
+cat temp.sql | sqlite3 -init init.sql
+rm temp.sql
+#
+# The err.csv file contains the asymmetric links.
+#
+awk -F "," '{ print $1 "," $2 "," $3 }' $DIRNAME/$DIRNAME-err.csv >  $DIRNAME/$DIRNAME-asymmetric.csv
+#
+# Process the symmetric.csv file to generate the .graphml files.
+#
+# grep "http" $DIRNAME/$DIRNAME-symmetric.csv | sed -e "s/\///g" -e "s/https://g" | awk -F"," 'BEGIN { print "digraph {" } { print "<" $1 "> -> <" $3 ">\n<" $3 "> -> <" $1 ">" } END { print "}" }' > $DIRNAME/$DIRNAME-symmetric.dot
+# grep "http" $DIRNAME/$DIRNAME-asymmetric.csv | sed -e "s/\///g" -e "s/https://g" | awk -F"," 'BEGIN { print "digraph {" } { print "<" $1 "> -> <" $3 ">\n" } END { print "}" }' > $DIRNAME/$DIRNAME-asymmetric.dot
+python3.10 graphml.py $DIRNAME
