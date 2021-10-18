@@ -8,6 +8,9 @@
 #   ROOT_URL - optional, the domain URL (absent "trust.txt") where to begin webcrawl. Default
 #   is "https://www.journallist.net/"
 #
+# Copyright (c) 2021 Brown Wolf Consulting LLC
+# License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
+#
 # Summary - This python script has several outputs:
 # 
 # 1. It downloads the trust.txt files that exist from all referenced urls with attributes
