@@ -6,6 +6,9 @@
 # Synopsis - cron.sh [DIRNAME]
 #   DIRNAME - optional, the directory in which to place results. Default DIRNAME is "Webcrawl-YYYY-MM-DD".
 #
+# Copyright (c) 2021 Brown Wolf Consulting LLC
+# License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
+#
 #-------------------------------------
 #
 # Set DIRNAME
