@@ -3,6 +3,9 @@
  *
  * Create intermediate tables: list and count by attribute.
  *
+ * Copyright (c) 2021 Brown Wolf Consulting LLC
+ * License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
+ *
  */
 CREATE TABLE member_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 CREATE TABLE member_count ("srcurl" TEXT, "count" INTEGER);
