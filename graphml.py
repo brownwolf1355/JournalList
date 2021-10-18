@@ -6,6 +6,9 @@
 # Synopsis - graphml.py [DIRNAME]
 #   DIRNAME - optional, the directory containing the symmetric.csv file. Default is "Webcrawl-YYYY-MM-DD" where "YYYY-MM-DD" is today's date.
 #
+# Copyright (c) 2021 Brown Wolf Consulting LLC
+# License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
+#
 #--------------------------------------------------------------------------------------------------
 import sys
 import os
