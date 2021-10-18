@@ -1,6 +1,8 @@
 /*
  * Generate intermediate tables
  *
+ * Copyright (c) 2021 Brown Wolf Consulting LLC
+ * License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
  */
 insert into member_list (srcurl,attr,refurl) select * from trust_txt where attr = "member" order by srcurl, refurl asc;
 insert into member_count (srcurl,count) select srcurl, count(*) from member_list group by srcurl;
