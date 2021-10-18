@@ -1,4 +1,5 @@
 # JournalList
+
 This is a repository for code developed for JournalList.net.
 
 It contains the following files:
@@ -12,3 +13,7 @@ It contains the following files:
 - graphml.py - a python script that generates three graphml files containing the symmetric links, the assymetric links, and the full ecosystem including
   both the symmetric and asymmetric links.
 - qa_trust_txt.py - a python script that parses a trust.txt file and lists any errors it contains.
+
+Copyright (c) 2021 Brown Wolf Consulting LLC
+
+License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
