@@ -6,6 +6,9 @@
 # Synopsis - qa_trust_txt.py trust.txt
 #   trust.txt - The trust.txt file to check.
 #
+# Copyright (c) 2021 Brown Wolf Consulting LLC
+# License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
+#
 import sys
 import os
 import time
