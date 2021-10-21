@@ -39,6 +39,8 @@ echo ".output $DIRNAME/$DIRNAME-publishers.csv" >> temp.sql
 echo "select * from publishers_list;" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-vendors.csv" >> temp.sql
 echo "select * from vendors_list;" >> temp.sql
+echo ".output $DIRNAME/$DIRNAME-controlled.csv" >> temp.sql
+echo "select * from controlled_list;" >> temp.sql
 echo ".quit" >> temp.sql
 #
 cat temp.sql | sqlite3 -init init.sql

@@ -56,7 +56,7 @@ def write_tail(gmlfile):
 #
 # Write a node definition to the gmlfile.
 #
-def write_node (gmlfile, url, color):
+def write_node (gmlfile, url, color, border):
     #
     nodeid = url[8:len(url)-1]
     gmlfile.write("    <node id=\"" + nodeid + "\" xlink:href=\"" + url + "trust.txt" + "\">\n")
@@ -65,6 +65,8 @@ def write_node (gmlfile, url, color):
     gmlfile.write("      <data key=\"d5\">\n")
     gmlfile.write("        <y:ShapeNode>\n")
     gmlfile.write("          <y:Fill color=\"" + color + "\" transparent=\"false\"/>\n")
+    # gmlfile.write("          <y:BorderStyle color=\"" + border + "\" type=\"line\" width=\"1.0\"/>\n")
+    gmlfile.write("          <y:BorderStyle color=\"#000000\" type=\"" + border + "\" width=\"1.0\"/>\n")
     gmlfile.write("          <y:NodeLabel modelName=\"sides\" modelPosition=\"e\">" + nodeid + "</y:NodeLabel>\n")
     gmlfile.write("          <y:Shape type=\"ellipse\"/>\n")
     gmlfile.write("        </y:ShapeNode>\n")
@@ -122,6 +124,109 @@ def write_uniedge (gmlfile, source, target, forward):
     gmlfile.write("      </data>\n")
     gmlfile.write("    </edge>\n")
 #
+# Write graphml ledgend.
+#
+def write_legend(gmlfile):
+    #
+    # Write legend nodes and edges (no need for missing_trust.txt_file in symmetric version)
+    #
+    green = "#00FF00"
+    blue = "#0000FF"
+    lightblue = "#87CEFA"
+    yellow = "#FFFF00"
+    red = "#FF0000"
+    black = "#000000"
+    #
+    write_node(gmlfile,"https://www.association.com/",green,"line")
+    write_node(gmlfile,"https://www.publisher.com/",blue,"line")
+    write_node(gmlfile,"https://www.vendor.com/",yellow,"line")
+    write_node(gmlfile,"https://missing_trust.txt_file/",lightblue,"dashed")
+    write_biedge(gmlfile,"https://www.association.com/","https://www.publisher.com/","member","belongto")
+    write_uniedge(gmlfile,"https://www.publisher.com/","https://www.vendor.com/","vendor")
+    write_uniedge(gmlfile,"https://www.publisher.com/","https://missing_trust.txt_file/","control")
+#
+# Read a list of urls from associations, publishers, or vendors from a file and return list.
+#
+def readlist (filename):
+    file = open(filename,"r")
+    lines = file.readlines()
+    list = []
+    for line in lines:
+        if (line not in list):
+            list.append(line.rstrip())
+    file.close()
+    return list
+#
+# Set edge labels based on attr.
+#
+def edgelabels (attr):
+#
+# Set edge labels.
+#
+    forward = attr
+    if (attr == "member"):
+        backward = "belongto"
+    elif (attr == "belongto"):
+        backward = "member"
+    elif (attr == "control"):
+        backward = "controlledby"
+    elif (attr == "controlledby"):
+        backward = "control"
+    elif (attr == "vendor"):
+        backward = "customer"
+    elif (attr == "customer"):
+        backward = "vendor"
+    #
+    return (forward, backward)
+#
+# Set node color based on url's presence in the lists and the flag indicating presence of trust.txt file.
+#
+#  - Association = Green or light green if no trust.txt
+#  - Publisher = Blue or light blue if no trust.txt
+#  - Vendor = Yellow or light yellow if no trust.txt
+#  - Controlled = Dashed border
+#
+def nodecolor (url, associations, publishers, vendors, controlled, flag):
+    #
+    green = "#00FF00"
+    lightgreen = "#90EE90"
+    blue = "#0000FF"
+    lightblue = "#87CEFA"
+    yellow = "#FFFF00"
+    lightyellow = "#FFFFE0"
+    red = "#FF0000"
+    black = "#000000"
+    white = "#FFFFFF"
+    #
+    # Determine node color.
+    #
+    if (url in associations):
+        if flag:
+            color = green
+        else:
+            color = lightgreen
+    elif (url in publishers):
+        if flag:
+            color = blue
+        else:
+            color = lightblue
+    elif (url in vendors):
+        if flag:
+            color = yellow
+        else:
+            color = lightyellow
+    else:
+        color = white
+    #
+    # Determine border type.
+    #
+    if (url in controlled):
+        border = "dashed"
+    else:
+        border = "line"
+    #
+    return color, border
+#     
 # Main program
 #
 # Set DIRNAME
@@ -140,86 +245,49 @@ if (os.path.isdir(dirname)):
     edgecount = 0
     nodelist = []
     #
-    # Set attribute colors. 
-    #  - Association = Green
-    #  - Publisher = Blue
-    #  - Vendor = Yellow
-    #  - No trust.txt = Red
-    #
-    association = "#00FF00"
-    publisher = "#0000FF"
-    vendor = "#FFFF00"
-    control = "#0000FF"
-    notrust = "#FF0000"
-    #
-    # Check if symmetric.csv file exists
+    # Check if symmetric.csv file exists.
     #
     csvname = dirname + "/" + dirname + "-symmetric.csv"
     if(os.path.isfile(csvname)):
         #
-        # Read symmetric.csv file, process content and write to both full and symmetric graphml files.
+        # Derive filenames.
         #
         gmlname = dirname + "/" + dirname + ".graphml"
         symname = dirname + "/" + dirname + "-symmetric.graphml"
         assocname = dirname + "/" + dirname + "-associations.csv"
         pubname = dirname + "/" + dirname + "-publishers.csv"
         vendname = dirname + "/" + dirname + "-vendors.csv"
-        gmlfile = open(gmlname,"w")
+        ctrldname = dirname + "/" + dirname + "-controlled.csv"
+        #
+        # Read list of associations, publishers, and vendors, along with the list of those that they control.
+        #
+        associations = readlist(assocname)
+        publishers = readlist(pubname)
+        vendors = readlist(vendname)
+        controlled = readlist(ctrldname)
+        #
+        # Open the graphml output files for symmetric links graph and full graph.
+        #
         symfile = open(symname,"w")
-        csvfile = open(csvname,"r")
-        assocfile = open(assocname,"r")
-        pubfile = open(pubname,"r")
-        vendfile = open(vendname,"r")
+        gmlfile = open(gmlname,"w")
         #
-        # Read association, publisher, and vendor lists (strip off trailing "\n")
-        #
-        lines = assocfile.readlines()
-        associations = []
-        for line in lines:
-            associations.append(line.rstrip())
-        #
-        lines = pubfile.readlines()
-        publishers = []
-        for line in lines:
-            publishers.append(line.rstrip())
-        #
-        lines = vendfile.readlines()
-        vendors = []
-        for line in lines:
-            vendors.append(line.strip())
-        #
-        # Close association, publisher, and vendor lists files.
-        #
-        assocfile.close()
-        pubfile.close()
-        vendfile.close()  
-        #
-        # Write graphml header to files
+        # Write graphml header to output files
         #
         write_header(gmlfile, "JournalList Ecosystem Graph - All Links")
         write_header(symfile, "JournalList Ecosystem Graph - Symmetric Links Only")
         #
-        # Write legend nodes and edges (no need for missing_trust.txt_file in symmetric version)
+        # Write legend nodes and edges.
         #
-        write_node(gmlfile,"https://www.association.com/",association)
-        write_node(gmlfile,"https://www.publisher.com/",publisher)
-        write_node(gmlfile,"https://www.vendor.com/",vendor)
-        write_node(gmlfile,"https://missing_trust.txt_file/","#FF0000")
-        write_biedge(gmlfile,"https://www.association.com/","https://www.publisher.com/","member","belongto")
-        write_uniedge(gmlfile,"https://www.publisher.com/","https://www.vendor.com/","vendor")
-        write_uniedge(gmlfile,"https://www.publisher.com/","https://missing_trust.txt_file/","control")
+        write_legend(gmlfile)
+        write_legend(symfile)
         #
-        write_node(symfile,"https://www.association.com/",association)
-        write_node(symfile,"https://www.publisher.com/",publisher)
-        write_node(symfile,"https://www.vendor.com/",vendor)
-        write_node(symfile,"https://missing_trust.txt_file/","#FF0000")
-        write_biedge(symfile,"https://www.association.com/","https://www.publisher.com/","member","belongto")
-        write_uniedge(symfile,"https://www.publisher.com/","https://www.vendor.com/","vendor")
-        write_uniedge(symfile,"https://www.publisher.com/","https://missing_trust.txt_file/","control")
+        # Read in the symmetric.csv file.
         #
-        # Read in the symmetric.csv file and process each line.
-        #
+        csvfile = open(csvname,"r")
         lines = csvfile.readlines()
+        csvfile.close()
+        #
+        # Process each line in the symmetric.csv file.
         #
         for line in lines:
             #
@@ -235,57 +303,33 @@ if (os.path.isdir(dirname)):
             #
             # Determine edge labels.
             #
-            if (attr == "member"):
-                forward = "member"
-                backward = "belongto"
-            elif (attr == "control"):
-                forward = "control"
-                backward = "controlledby"
-            else:
-                forward = "vendor"
-                backward = "customer"
+            forward, backward = edgelabels (attr)
             #
-            # Determine node colors
+            # Determine node colors.
             #
-            if (srcurl in associations):
-                srccolor = association
-            elif (srcurl in publishers):
-                srccolor = publisher
-            elif (srcurl in vendors):
-                srccolor = vendor
-            else:
-                srccolor = "#FFFFFF"
-            #
-            if (refurl in associations):
-                refcolor = association
-            elif (refurl in publishers):
-                refcolor = publisher
-            elif (refurl in vendors):
-                refcolor = vendor
-            else:
-                refcolor = "#FFFFFF"
+            srccolor, srcborder = nodecolor (srcurl, associations, publishers, vendors, controlled, True)
+            refcolor, refborder = nodecolor (refurl, associations, publishers, vendors, controlled, True)
             #
             # Add srcurl and refurl to node list and write the node definition to the gmlfile and symfile if they aren't already in the node list.
             #
             if (srcurl not in nodelist):
                 nodelist.append(srcurl)
-                write_node(gmlfile,srcurl,srccolor)
-                write_node(symfile,srcurl,srccolor)
+                write_node (gmlfile, srcurl, srccolor, srcborder)
+                write_node (symfile, srcurl, srccolor, srcborder)
             if (refurl not in nodelist):
                 nodelist.append(refurl)
-                write_node(gmlfile,refurl,refcolor)
-                write_node(symfile,refurl,refcolor)
+                write_node (gmlfile, refurl, refcolor, refborder)
+                write_node (symfile, refurl, refcolor, refborder)
             #
             # Write the edge definition to the gmlfile and symfile.
             #
-            write_biedge(gmlfile, srcurl, refurl, forward, backward)
-            write_biedge(symfile, srcurl, refurl, forward, backward)
+            write_biedge (gmlfile, srcurl, refurl, forward, backward)
+            write_biedge (symfile, srcurl, refurl, forward, backward)
         #
         # Write the tail of the symfile and close it.
         #
-        write_tail(symfile)
+        write_tail (symfile)
         symfile.close()
-        csvfile.close()
     else:
         print (csvname, "doesn't exist")
     #
@@ -303,17 +347,11 @@ if (os.path.isdir(dirname)):
         #
         # Write graphml header to file
         #
-        write_header(asymfile, "JournalList Ecosystem Graph - Asymmetric Links Only")
+        write_header (asymfile, "JournalList Ecosystem Graph - Asymmetric Links Only")
         #
         # Write legend nodes and edges.
         #
-        write_node(asymfile,"https://www.association.com/",association)
-        write_node(asymfile,"https://www.publisher.com/",publisher)
-        write_node(asymfile,"https://www.vendor.com/",vendor)
-        write_node(asymfile,"https://missing_trust.txt_file/","#FF0000")
-        write_biedge(asymfile,"https://www.association.com/","https://www.publisher.com/","member","belongto")
-        write_uniedge(asymfile,"https://www.publisher.com/","https://www.vendor.com/","vendor")
-        write_uniedge(asymfile,"https://www.publisher.com/","https://missing_trust.txt_file/","control")
+        write_legend (asymfile)
         #
         # Read in the asymmetric.csv file and process each line.
         #
@@ -333,53 +371,37 @@ if (os.path.isdir(dirname)):
             #
             # Determine edge labels.
             #
-            if (attr == "member"):
-                forward = "member"
-                backward = "belongto"
-            elif (attr == "control"):
-                forward = "control"
-                backward = "controlledby"
-            else:
-                forward = "vendor"
-                backward = "customer"
+            forward, backward = edgelabels (attr)
             #
-            # Determine node colors
+            # Determine node colors.
             #
-            if (srcurl in associations):
-                srccolor = association
-            elif (srcurl in publishers):
-                srccolor = publisher
-            elif (srcurl in vendors):
-                srccolor = vendor
-            else:
-                srccolor = "#FFFFFF"
-            #
-            refcolor = "#FF0000"
+            srccolor, srcborder = nodecolor (srcurl, associations, publishers, vendors, controlled, True)
+            refcolor, refborder = nodecolor (refurl, associations, publishers, vendors, controlled, False)
             #
             # Add srcurl and refurl to node list and write the node definition to the gmlfile and asymfile if they aren't already in the node list.
             #
             if (srcurl not in nodelist):
                 nodelist.append(srcurl)
-                write_node(gmlfile,srcurl,srccolor)
+                write_node (gmlfile, srcurl, srccolor, srcborder)
             if (refurl not in nodelist):
                 nodelist.append(refurl)
-                write_node(gmlfile,refurl,refcolor)
+                write_node (gmlfile, refurl, refcolor, refborder)
             if (srcurl not in asymnodelist):
                 asymnodelist.append(srcurl)
-                write_node(asymfile,srcurl,srccolor)
+                write_node (asymfile, srcurl, srccolor, srcborder)
             if (refurl not in asymnodelist):
                 asymnodelist.append(refurl)
-                write_node(asymfile,refurl,refcolor)
+                write_node (asymfile, refurl, refcolor, refborder)
             #
             # Write the edge definition to the gmlfile and asymfile.
             #
-            write_uniedge(gmlfile, srcurl, refurl, forward)
-            write_uniedge(asymfile, srcurl, refurl, forward)
+            write_uniedge (gmlfile, srcurl, refurl, forward)
+            write_uniedge (asymfile, srcurl, refurl, forward)
             #
             # Write the tail of the gmfile and asymfile, then close them.
             #
-        write_tail(asymfile)
-        write_tail(gmlfile)
+        write_tail (asymfile)
+        write_tail (gmlfile)
         gmlfile.close()
         asymfile.close()
         csvfile.close()            

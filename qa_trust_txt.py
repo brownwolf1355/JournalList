@@ -9,6 +9,7 @@
 # Copyright (c) 2021 Brown Wolf Consulting LLC
 # License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
 #
+#--------------------------------------------------------------------------------------------------
 import sys
 import os
 import time
@@ -152,6 +153,7 @@ if len(sys.argv) > 1:
     if(os.path.isfile(filename)):
         symattr = "member,belongto,control,controlledby,vendor,customer"
         asymattr = "social,contact,disclosure"
+        whoislist = []
         #
         # Open file and read it.
         #
@@ -196,14 +198,25 @@ if len(sys.argv) > 1:
                     success, exception, r, error = fetchtrust("https://" + path + "trust.txt")
                     if not success:
                         print ("Error at line",linenum,": ",line.strip(),"-",error)
+                        if exception:
+                            whoislist.append(path[4:len(path)-1])
                 elif (attr[0] in asymattr):
                     path = normalize(attr[1])
                     success, exception, r, error = fetchtrust("https://" + path)
-                    if not success and not exception:
-                        if (not (("Content-Type" in r.headers) and ("text/html" in r.headers['Content-Type']))):
-                            print ("Error at line",linenum,": ",line.strip(),"-",error)
+                    if not success and not exception and (not (("Content-Type" in r.headers) and ("text/html" in r.headers['Content-Type']))):
+                        print ("Error at line",linenum,": ",line.strip(),"-",error)
+                    elif exception:
+                        whoislist.append(path[4:len(path)-1])
                 else:
                     print ("Invalid attribute at line",linenum,":",attr[0])
+        #
+        # Write the list of domains that raised exceptions.
+        #
+        if len(whoislist) > 0:
+            whoisfile = open("whoislist.txt","w")
+            for domain in whoislist:
+                whoisfile.write(domain + "\n")
+            whoisfile.close()
         #
         # Check if "journallist.net" found.
         #
