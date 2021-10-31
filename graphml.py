@@ -65,7 +65,6 @@ def write_node (gmlfile, url, color, border):
     gmlfile.write("      <data key=\"d5\">\n")
     gmlfile.write("        <y:ShapeNode>\n")
     gmlfile.write("          <y:Fill color=\"" + color + "\" transparent=\"false\"/>\n")
-    # gmlfile.write("          <y:BorderStyle color=\"" + border + "\" type=\"line\" width=\"1.0\"/>\n")
     gmlfile.write("          <y:BorderStyle color=\"#000000\" type=\"" + border + "\" width=\"1.0\"/>\n")
     gmlfile.write("          <y:NodeLabel modelName=\"sides\" modelPosition=\"e\">" + nodeid + "</y:NodeLabel>\n")
     gmlfile.write("          <y:Shape type=\"ellipse\"/>\n")
@@ -226,8 +225,44 @@ def nodecolor (url, associations, publishers, vendors, controlled, flag):
         border = "line"
     #
     return color, border
+#
+# matchsym (link, symmetric)
+#
+def matchsym (line, symmetric):
+    #
+    # Add the reverse direction to the line.
+    #
+    temp = line.split(",",2)
+    srcurl = temp[0].strip()
+    attr = temp[1].strip()
+    refurl = temp[2].strip()
+    #
+    if (attr == "member"):
+        temp = line + "," + refurl + ",belongto," + srcurl
+    elif (attr == "belongto"):
+        temp = line + "," + refurl + ",member," + srcurl
+    elif (attr == "control"):
+        temp = line + "," + refurl + ",controlledby," + srcurl
+    elif (attr == "controlledby"):
+        temp = line + "," + refurl + ",control," + srcurl
+    elif (attr == "vendor"):
+        temp = line + "," + refurl + ",customer," + srcurl
+    elif (attr == "customer"):
+        temp = line + "," + refurl + ",vendor," + srcurl
+    try:
+        index = symmetric.index(temp)
+    except:
+        match = False
+    else:
+        match = True
+    return match       
 #     
 # Main program
+#
+# Specify symmetric and asymmetric attributes.
+#
+symattr = "member,belongto,control,controlledby,vendor,customer"
+asymattr = "social,contact,disclosure"
 #
 # Set DIRNAME
 #
@@ -240,20 +275,17 @@ else:
 #
 if (os.path.isdir(dirname)):
     #
-    # Set the node and edge counts. Create an empty nodelist.
-    nodecout = 0
-    edgecount = 0
-    nodelist = []
+    # Check if .csv file exists.
     #
-    # Check if symmetric.csv file exists.
-    #
-    csvname = dirname + "/" + dirname + "-symmetric.csv"
+    csvname = dirname + "/" + dirname + ".csv"
     if(os.path.isfile(csvname)):
         #
         # Derive filenames.
         #
         gmlname = dirname + "/" + dirname + ".graphml"
         symname = dirname + "/" + dirname + "-symmetric.graphml"
+        asymname = dirname + "/" + dirname + "-asymmetric.graphml"
+        symcsvname = dirname + "/" + dirname + "-symmetric.csv"
         assocname = dirname + "/" + dirname + "-associations.csv"
         pubname = dirname + "/" + dirname + "-publishers.csv"
         vendname = dirname + "/" + dirname + "-vendors.csv"
@@ -265,120 +297,167 @@ if (os.path.isdir(dirname)):
         publishers = readlist(pubname)
         vendors = readlist(vendname)
         controlled = readlist(ctrldname)
+        symmetric = readlist(symcsvname)
         #
-        # Open the graphml output files for symmetric links graph and full graph.
+        # Set the node and edge counts. Create an empty nodelist.
+        #
+        nodelist = []
+        symnodes = []
+        asymnodes = []
+        #
+        # Open the graphml output files.
         #
         symfile = open(symname,"w")
+        asymfile = open(asymname,"w")
         gmlfile = open(gmlname,"w")
         #
         # Write graphml header to output files
         #
         write_header(gmlfile, "JournalList Ecosystem Graph - All Links")
         write_header(symfile, "JournalList Ecosystem Graph - Symmetric Links Only")
+        write_header(asymfile, "JournalList Ecosystem Graph - Asymmetric Links Only")
         #
         # Write legend nodes and edges.
         #
         write_legend(gmlfile)
         write_legend(symfile)
+        write_legend(asymfile)
         #
-        # Read in the symmetric.csv file.
+        # Read in the .csv file.
         #
-        csvfile = open(csvname,"r")
-        lines = csvfile.readlines()
-        csvfile.close()
+        lines = readlist(csvname)
         #
         # Process each line in the symmetric.csv file.
         #
         for line in lines:
             #
-            # Skip the header line
-            #
-            if ("srcurl" in line):
-                continue
+            # Split line into srcurl, attr, and refurl
             #
             temp = line.split(",",2)
             srcurl = temp[0].strip()
             attr = temp[1].strip()
             refurl = temp[2].strip()
             #
+            # Skip any nonsymmetric attribute
+            #
+            if (attr not in symattr):
+                continue
+            #
             # Determine edge labels.
             #
             forward, backward = edgelabels (attr)
             #
-            # Determine node colors.
+            # Check if link is in the symmetric list.
             #
-            srccolor, srcborder = nodecolor (srcurl, associations, publishers, vendors, controlled, True)
-            refcolor, refborder = nodecolor (refurl, associations, publishers, vendors, controlled, True)
+            match = matchsym (line, symmetric)
             #
-            # Add srcurl and refurl to node list and write the node definition to the gmlfile and symfile if they aren't already in the node list.
+            # If match then write symmetric nodes and edges.
             #
-            if (srcurl not in nodelist):
-                nodelist.append(srcurl)
-                write_node (gmlfile, srcurl, srccolor, srcborder)
-                write_node (symfile, srcurl, srccolor, srcborder)
-            if (refurl not in nodelist):
-                nodelist.append(refurl)
-                write_node (gmlfile, refurl, refcolor, refborder)
-                write_node (symfile, refurl, refcolor, refborder)
-            #
-            # Write the edge definition to the gmlfile and symfile.
-            #
-            write_biedge (gmlfile, srcurl, refurl, forward, backward)
-            write_biedge (symfile, srcurl, refurl, forward, backward)
+            if match:
+                #
+                # Determine node colors and write node if necessary and bidirectional edge to gmlfile and symfile output files.
+                #
+                srccolor, srcborder = nodecolor (srcurl, associations, publishers, vendors, controlled, True)
+                refcolor, refborder = nodecolor (refurl, associations, publishers, vendors, controlled, True)
+                #
+                if (srcurl not in nodelist):
+                    nodelist.append(srcurl)
+                    write_node (gmlfile, srcurl, srccolor, srcborder)
+                if (refurl not in nodelist):
+                    nodelist.append(refurl)
+                    write_node (gmlfile, refurl, refcolor, refborder)
+                if (srcurl not in symnodes):
+                    symnodes.append(srcurl)
+                    write_node (symfile, srcurl, srccolor, srcborder)
+                if (refurl not in symnodes):
+                    symnodes.append(refurl)
+                    write_node (symfile, refurl, refcolor, refborder)
+                #
+                write_biedge (gmlfile, srcurl, refurl, forward, backward)
+                write_biedge (symfile, srcurl, refurl, forward, backward)
+            else:
+                #
+                # Check if this is the reverse of a symmetric link.
+                #
+                temp = line
+                if (attr == "belongto"):
+                    temp = refurl + ",member," + srcurl
+                elif (attr == "controlledby"):
+                    temp = refurl + ",control," + srcurl
+                elif (attr == "customer"):
+                    temp = refurl + "vendor" + srcurl
+                #
+                match = matchsym (temp, symmetric)
+                #
+                if (not match):
+                    #
+                    # If not, determine node colors and write node if necessary and unidirectional edge to gmlfile and asymfile output files.
+                    #
+                    srccolor, srcborder = nodecolor (srcurl, associations, publishers, vendors, controlled, True)
+                    refcolor, refborder = nodecolor (refurl, associations, publishers, vendors, controlled, False)
+                    #
+                    if (srcurl not in nodelist):
+                        nodelist.append(srcurl)
+                        write_node (gmlfile, srcurl, srccolor, srcborder)
+                    if (refurl not in nodelist):
+                        nodelist.append(refurl)
+                        write_node (gmlfile, refurl, refcolor, refborder)
+                    if (srcurl not in asymnodes):
+                        asymnodes.append(srcurl)
+                        write_node (asymfile, srcurl, srccolor, srcborder)
+                    if (refurl not in asymnodes):
+                        asymnodes.append(refurl)
+                        write_node (asymfile, refurl, refcolor, refborder)
+                    #
+                    write_uniedge (gmlfile, srcurl, refurl, forward)
+                    write_uniedge (asymfile, srcurl, refurl, forward)                
         #
         # Write the tail of the symfile and close it.
         #
         write_tail (symfile)
+        write_tail (asymfile)
+        write_tail (gmlfile)
+        gmlfile.close()
+        asymfile.close()
         symfile.close()
-    else:
-        print (csvname, "doesn't exist")
-    #
-    # Check if asymmetric.csv file exists
-    #
-    asymnodelist = []
-    csvname = dirname + "/" + dirname + "-asymmetric.csv"
-    if(os.path.isfile(csvname)):
         #
-        # Read asymmetric.csv file, process content and write to both full and symmetric graphml files.
+        # Process error file
         #
-        asymname = dirname + "/" + dirname + "-asymmetric.graphml"
-        csvfile = open(csvname,"r")
-        asymfile = open(asymname,"w")
+        csvname = dirname + "/" + dirname + "-err.csv"
+        gmlname = dirname + "/" + dirname + "-err.graphml"
         #
-        # Write graphml header to file
+        nodelist = []
         #
-        write_header (asymfile, "JournalList Ecosystem Graph - Asymmetric Links Only")
+        # Open file, write header and ledgend.
         #
-        # Write legend nodes and edges.
+        gmlfile = open(gmlname,"w")
+        write_header(gmlfile, "JournalList Ecosystem Graph - HTTP Error Links")
+        write_legend(gmlfile)
         #
-        write_legend (asymfile)
+        # Read in the .csv file.
         #
-        # Read in the asymmetric.csv file and process each line.
+        lines = readlist(csvname)
         #
-        lines = csvfile.readlines()
+        # Process each line in the err.csv file.
         #
         for line in lines:
             #
-            # Skip the header line
+            # Split line into srcurl, attr, and refurl
             #
-            if ("srcurl" in line):
-                continue
-            #
-            temp = line.split(",",2)
-            srcurl = temp[0]
-            attr = temp[1]
+            temp = line.split(",",3)
+            srcurl = temp[0].strip()
+            attr = temp[1].strip()
             refurl = temp[2].strip()
             #
-            # Determine edge labels.
+            # Skip any nonsymmetric attribute
             #
-            forward, backward = edgelabels (attr)
+            if (attr not in symattr):
+                continue
             #
-            # Determine node colors.
+            # Determine node colors and write node if necessary and unidirectional edge to gmlfile and asymfile output files.
             #
             srccolor, srcborder = nodecolor (srcurl, associations, publishers, vendors, controlled, True)
             refcolor, refborder = nodecolor (refurl, associations, publishers, vendors, controlled, False)
-            #
-            # Add srcurl and refurl to node list and write the node definition to the gmlfile and asymfile if they aren't already in the node list.
             #
             if (srcurl not in nodelist):
                 nodelist.append(srcurl)
@@ -386,25 +465,13 @@ if (os.path.isdir(dirname)):
             if (refurl not in nodelist):
                 nodelist.append(refurl)
                 write_node (gmlfile, refurl, refcolor, refborder)
-            if (srcurl not in asymnodelist):
-                asymnodelist.append(srcurl)
-                write_node (asymfile, srcurl, srccolor, srcborder)
-            if (refurl not in asymnodelist):
-                asymnodelist.append(refurl)
-                write_node (asymfile, refurl, refcolor, refborder)
-            #
-            # Write the edge definition to the gmlfile and asymfile.
             #
             write_uniedge (gmlfile, srcurl, refurl, forward)
-            write_uniedge (asymfile, srcurl, refurl, forward)
-            #
-            # Write the tail of the gmfile and asymfile, then close them.
-            #
-        write_tail (asymfile)
+        #
+        # Write tail of gmlfile and close it.
         write_tail (gmlfile)
         gmlfile.close()
-        asymfile.close()
-        csvfile.close()            
+        #
     else:
         print (csvname, "doesn't exist")
 else:

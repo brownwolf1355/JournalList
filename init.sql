@@ -22,11 +22,13 @@ CREATE TABLE attr_count ("srcurl" TEXT, "member_count" INTEGER, "belongto_count"
  * Create output tables: symmetric links, list of associations, publishers, vendors, and controlled urls.
  *
  */
-CREATE TABLE symmetric_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
+CREATE TABLE symmetric_list ("srcurl1" TEXT, "attr1" TEXT, "refurl1" TEXT, "srcurl2" TEXT, "attr2" TEXT, "refurl2" TEXT);
+CREATE TABLE asymmetric_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 CREATE TABLE associations_list ("srcurl" TEXT);
 CREATE TABLE publishers_list ("srcurl" TEXT);
 CREATE TABLE vendors_list ("srcurl" TEXT);
 CREATE TABLE controlled_list ("srcurl" TEXT);
+CREATE TABLE temp_list ("srcurl" TEXT);
 /*
  * Set mode and turn headers on.
  *
