@@ -2,9 +2,11 @@
 #
 # JournalList.net QA script to check the specified trust.txt file.
 #
-# Name - qa_trust_txt.py
+# Name - qa_trust_txt.py trust.txt [srcurl webcrawl.csv]
 # Synopsis - qa_trust_txt.py trust.txt
 #   trust.txt - The trust.txt file to check.
+#   srcurl - Optional, the URL to be used as the srcurl, to check against the .csv file
+#   webcrawl.csv - Optional, the .csv file containing the results of a webcrawl of all published trust.txt files
 #
 # Copyright (c) 2021 Brown Wolf Consulting LLC
 # License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
@@ -117,7 +119,6 @@ def fetchtrust (refpath):
         #
         refurl = "http://" + refpath[12:len(refpath)]
         success, exception, r, error = fetchurl (refurl)
-        # print ("Fetch results: ", success, exception, r, error)
         #
         if exception:
             #
@@ -125,7 +126,6 @@ def fetchtrust (refpath):
             #
             refurl = refpath
             success, exception, r, error = fetchurl (refurl)
-            # print ("Fetch results: ", success, exception, r, error)
             #
             if exception:
                 #
@@ -133,7 +133,37 @@ def fetchtrust (refpath):
                 #
                 refurl = "https://" + refpath[12:len(refpath)]
                 success, exception, r, error = fetchurl (refurl)
+                #
     return success, exception, r, error
+#
+# Read the Webcrawl.csv file and filter out the "control" and "controlledby" entries.
+#
+def readcsv (filename):
+    file = open(filename,"r")
+    lines = file.readlines()
+    file.close()
+    srclist = []
+    attrlist = []
+    reflist = []
+    for line in lines:
+        temp = line.split(",",3)
+        # print ("readcsv: temp", temp)
+        if (temp[1] == "control") or (temp[1] == "controlledby") or (temp[1] == "social"):
+            srclist.append(temp[0].strip())
+            attrlist.append(temp[1].strip())
+            reflist.append(temp[2].strip())
+    return srclist, attrlist, reflist
+#
+# Check if attr and refurl are in .csv file with a different srcurl.
+#
+def checkattr (srcurl, attr, refurl, srclist, attrlist, reflist, linenum):
+    #
+    # Loop through lists checking if attr, refurl pair present for a different srcurl and print warning.
+    #
+    for index in range(len(reflist)):
+        # print ("checkattr: srclist, attrlist, reflist, index -", srclist[index], ",", attrlist[index], ",", reflist[index])
+        if (srcurl != srclist[index]) and (attr == attrlist[index]) and (refurl == reflist[index]):
+            print ("Warning at line number:", linenum, "attribute and refurl also used in:", srclist[index], ",", attrlist[index], ",", reflist[index])
 #
 # Main program
 #
@@ -143,10 +173,16 @@ if not sys.warnoptions:
     import warnings
     warnings.simplefilter("ignore")
 #
-# Set url
+# Set trust.txt filename.
 #
 if len(sys.argv) > 1:
     filename = sys.argv[1]
+    if len(sys.argv) > 3:
+        checkcsv = True
+        srcurl = normalize(sys.argv[2])
+        srclist, attrlist, reflist = readcsv(sys.argv[3])
+    else:
+        checkcsv = False
     #
     # Check if file exists.
     #
@@ -159,12 +195,10 @@ if len(sys.argv) > 1:
         #
         file = open(filename,"r")
         lines = file.readlines()
+        file.close()
+        #
         linenum = 0
         jlfound = False
-        #
-        # Close trust.txt file.
-        #
-        file.close()
         #
         # Parse trust.txt file
         #
@@ -188,6 +222,13 @@ if len(sys.argv) > 1:
             #
             attr = tmpline.split("=",2)
             if len(attr) == 2:
+                #
+                # If srcurl and .csv file specified, check to see if present in .csv file.
+                #
+                if (checkcsv):
+                    if (attr[0] == "control") or (attr[0] == "controlledby") or (attr[0] == "social"):
+                        refurl = normalize(attr[1])
+                        checkattr ("https://" + srcurl, attr[0], "https://" + refurl, srclist, attrlist, reflist, linenum)
                 #
                 # If it is a symmetric attribute, then normalize the referenced url and check the referenced trust.txt file. 
                 # If it is an asymmetric attribute, then normalize the referenced url and check the referenced url for html text.
@@ -225,4 +266,4 @@ if len(sys.argv) > 1:
     else:
         print (filename, "does not exist")
 else:
-    print ("No file specified")
+    print ("No trust.txt file specified")
