@@ -163,7 +163,8 @@ def checkattr (srcurl, attr, refurl, srclist, attrlist, reflist, linenum):
     for index in range(len(reflist)):
         # print ("checkattr: srclist, attrlist, reflist, index -", srclist[index], ",", attrlist[index], ",", reflist[index])
         if (srcurl != srclist[index]) and (attr == attrlist[index]) and (refurl == reflist[index]):
-            print ("Warning at line number:", linenum, "attribute and refurl also used in:", srclist[index], ",", attrlist[index], ",", reflist[index])
+            temp = srclist[index] + "," + attrlist[index] + "," + reflist[index]
+            print ("Warning at line:", linenum, "attribute and refurl also used in:", temp)
 #
 # Main program
 #
@@ -238,18 +239,18 @@ if len(sys.argv) > 1:
                     path = normalize(attr[1])
                     success, exception, r, error = fetchtrust("https://" + path + "trust.txt")
                     if not success:
-                        print ("Error at line",linenum,": ",line.strip(),"-",error)
+                        print ("Error at line:",linenum,line.strip(),"-",error)
                         if exception:
                             whoislist.append(path[4:len(path)-1])
                 elif (attr[0] in asymattr):
                     path = normalize(attr[1])
                     success, exception, r, error = fetchtrust("https://" + path)
                     if not success and not exception and (not (("Content-Type" in r.headers) and ("text/html" in r.headers['Content-Type']))):
-                        print ("Error at line",linenum,": ",line.strip(),"-",error)
+                        print ("Error at line:",linenum,line.strip(),"-",error)
                     elif exception:
                         whoislist.append(path[4:len(path)-1])
                 else:
-                    print ("Invalid attribute at line",linenum,":",attr[0])
+                    print ("Invalid attribute at line:",linenum,attr[0])
         #
         # Write the list of domains that raised exceptions.
         #
