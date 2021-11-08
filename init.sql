@@ -19,7 +19,7 @@ CREATE TABLE vendor_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 CREATE TABLE customer_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 CREATE TABLE attr_count ("srcurl" TEXT, "member_count" INTEGER, "belongto_count" INTEGER);
 /*
- * Create output tables: symmetric links, list of associations, publishers, vendors, and controlled urls.
+ * Create output tables: symmetric links, list of associations, publishers, vendors, and controlled urls, and statistics.
  *
  */
 CREATE TABLE symmetric_list ("srcurl1" TEXT, "attr1" TEXT, "refurl1" TEXT, "srcurl2" TEXT, "attr2" TEXT, "refurl2" TEXT);
@@ -29,6 +29,7 @@ CREATE TABLE publishers_list ("srcurl" TEXT);
 CREATE TABLE vendors_list ("srcurl" TEXT);
 CREATE TABLE controlled_list ("srcurl" TEXT);
 CREATE TABLE temp_list ("srcurl" TEXT);
+create table stats ("title" TEXT, "count" INTEGER);
 /*
  * Set mode and turn headers on.
  *

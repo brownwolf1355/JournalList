@@ -57,3 +57,27 @@ insert into vendors_list (srcurl) select distinct refurl from vendor_list;
  */
 insert into controlled_list (srcurl) select distinct refurl from control_list;
 insert into controlled_list (srcurl) select distinct srcurl from controlledby_list;
+/*
+ * Generate the statistics for associations, publishers, vendors, JournalList members, symmetric and asymmetric relationships.
+ *
+ */
+insert into stats (title) values ("Number of Associations");
+update stats set count = (select count (distinct srcurl) from associations_list) where count is null;
+insert into stats (title) values ("Number of Publishers");
+update stats set count = (select count (distinct srcurl) from publishers_list) where count is null;
+insert into stats (title) values ("Number of Vendors");
+insert into stats (title,count) values ("Ecosystem Total",0);
+update stats set count = (select count (distinct srcurl) from vendors_list) where count is null;
+insert into stats (title) values ("Number of Association Members of JournalList");
+update stats set count = (select count (distinct associations_list.srcurl) from associations_list join trust_txt where associations_list.srcurl = trust_txt.refurl and trust_txt.srcurl = "https://www.journallist.net/") where count is null;
+insert into stats (title) values ("Number of Publisher Members of JournalList");
+update stats set count = (select count (distinct publishers_list.srcurl) from publishers_list join trust_txt where publishers_list.srcurl = trust_txt.refurl and trust_txt.srcurl = "https://www.journallist.net/") where count is null;
+insert into stats (title) values ("Number of Vendor Members of JournalList");
+update stats set count = (select count (distinct vendors_list.srcurl) from vendors_list join trust_txt where vendors_list.srcurl = trust_txt.refurl and trust_txt.srcurl = "https://www.journallist.net/") where count is null;
+insert into stats (title,count) values ("JournalList Total",0);
+insert into stats (title) values ("Number of trust.txt files Found");
+update stats set count = (select count (distinct srcurl) from trust_txt) where count is null;
+insert into stats (title) values ("Number of Symmetric Relationships");
+update stats set count = (select count (srcurl1) from symmetric_list) where count is null;
+insert into stats (title) values ("Number of Asymmetric Relationships");
+update stats set count = (select count (srcurl) from asymmetric_list) where count is null;
