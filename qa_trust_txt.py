@@ -199,6 +199,7 @@ if len(sys.argv) > 1:
         file.close()
         #
         linenum = 0
+        attrcount = 0
         jlfound = False
         #
         # Parse trust.txt file
@@ -236,21 +237,33 @@ if len(sys.argv) > 1:
                 # Otherwise, write the invalid attribute error.
                 #
                 if (attr[0] in symattr):
+                    attrcount += 1
                     path = normalize(attr[1])
-                    success, exception, r, error = fetchtrust("https://" + path + "trust.txt")
+                    server = "https://" + path
+                    url = server + "trust.txt"
+                    success, exception, r, error = fetchtrust(url)
                     if not success:
-                        print ("Error at line:",linenum,line.strip(),"-",error)
                         if exception:
+                            print ("Error at line:",linenum,line.strip(),"- unable to connect with server -",server,"-",error)
                             whoislist.append(path[4:len(path)-1])
+                        else:
+                            print ("Error at line:",linenum,line.strip(),"- missing trust.txt file -",url,"-",error)
                 elif (attr[0] in asymattr):
+                    attrcount += 1
                     path = normalize(attr[1])
                     success, exception, r, error = fetchtrust("https://" + path)
                     if not success and not exception and (not (("Content-Type" in r.headers) and ("text/html" in r.headers['Content-Type']))):
-                        print ("Error at line:",linenum,line.strip(),"-",error)
+                        print ("Error at line:",linenum,line.strip(),"- missing trust.txt file -",url,"-",error)
                     elif exception:
+                        print ("Error at line:",linenum,line.strip(),"- unable to connect with server -",server,"-",error)
                         whoislist.append(path[4:len(path)-1])
                 else:
                     print ("Invalid attribute at line:",linenum,attr[0])
+        #
+        # Check if no attributes found
+        #
+        if (attrcount == 0):
+            print ("No attributes found")
         #
         # Write the list of domains that raised exceptions.
         #
