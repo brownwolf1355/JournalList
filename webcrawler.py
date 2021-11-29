@@ -135,7 +135,7 @@ def write_error (http, srcpath, attr, refpath, error, errfile):
 def write_csv (http, srcpath, attr, refpath, csvfile):
     csvfile.write (http + srcpath + "," + attr + "," + http + refpath + "\n")
 #
-# fetchtrust(srcurl,refurl,dirname,filename,csvfile,logfile,errfile) - Fetch a trust.txt file and catch exceptions. If there are no exceptions
+# fetchtrust(srcpath,attr,refpath,dirname,filename,csvfile,logfile,errfile) - Fetch a trust.txt file and catch exceptions. If there are no exceptions
 # write the contents to the specified directory and filename. Check if the content is plaintext and return success=True. Otherwise, write
 # a blank line to the specified directory and filename and return success=False.
 #
@@ -143,6 +143,7 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, csvfile, logfile, err
     #
     # Set source and referenced urls.
     #
+    http = "https://"
     srcurl = http + srcpath + "trust.txt"
     refurl = http + refpath + "trust.txt"
     #
@@ -152,32 +153,40 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, csvfile, logfile, err
     #
     # Try using "http" first.
     #
-    refurl = "http://" + refpath + "trust.txt"
+    http = "http://"
+    refurl = http + refpath + "trust.txt"
+    logfile.write("Trying: " + refurl + "\n")
     #
     success, exception, r, error = fetchurl (refurl)
     if exception:
         #
-        # Try Try using "http" and dropping the "www."
+        # Try using "http" and dropping the "www."
         #
-        refurl = "http://" + refpath[4:len(refpath)]
+        refurl = http + refpath[4:len(refpath)]
+        logfile.write("Trying: " + refurl + "\n")
         success, exception, r, error = fetchurl (refurl)
-        # print ("Fetch results: ", success, exception, r, error)
         #
         if exception:
             #
             # Try using "https"
             #
-            refurl = "https://" + refpath
+            http = "https://"
+            refurl = http + refpath
+            logfile.write("Trying: " + refurl + "\n")
             success, exception, r, error = fetchurl (refurl)
-            # print ("Fetch results: ", success, exception, r, error)
             #
             if exception:
                 #
                 # Try using "https" and dropping the "www."
                 #
-                refurl = "https://" + refpath[4:len(refpath)]
+                refurl = http + refpath[4:len(refpath)]
+                logfile.write("Trying: " + refurl + "\n")
                 success, exception, r, error = fetchurl (refurl)    
     if success:
+        #
+        # Log the status code
+        #
+        logfile.write ("HTTP Status Code: " + str(r.status_code) + "\n")
         #
         # Write the trust.txt file and log it.
         #
@@ -186,14 +195,11 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, csvfile, logfile, err
         trustfile.write(r.text)
         trustfile.close()
         #
-        # Log the status code
-        #
-        logfile.write ("HTTP Status Code: " + str(r.status_code) + "\n")
-        #
-        # If the HTTP status code is not OK (200), then write to error file.
+        # If the HTTP status code is not OK (not 200), then write to error file and log error.
         #
         if r.status_code != 200:
-            write_error (http, srcpath, attr, refpath, "HTTP Status Code: " + str(r.status_code), errfile)
+            write_error ("https://", srcpath, attr, refpath, "HTTP Status Code: " + str(r.status_code), errfile)
+            logfile.write ("HTTP Status Code: " + str(r.status_code) + "\n")
             success = False
         else:
             #
@@ -201,19 +207,21 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, csvfile, logfile, err
             #
             success = ("Content-Type" in r.headers) and ("text/plain" in r.headers['Content-Type'])
             #
-            # If the content is not plaintext, log an error.
+            # If the content is not plaintext, write to error file and log error.
             #
             if not success:
-                write_error (http, srcpath, attr, refpath, "Content type: " + r.headers['Content-Type'], errfile)
+                write_error ("https://", srcpath, attr, refpath, "Content type: " + r.headers['Content-Type'], errfile)
+                logfile.write ("Content type: " + r.headers['Content-Type'] + "\n")
     else:
         #
         # Write a blank trust.txt file, log it, and write to error file.
         #
+        write_error ("https://", srcpath, attr, refpath, error, errfile)
+        logfile.write ("HTTP GET error: " + error + "\n")
         logfile.write ("Writing blank trust.txt file: " + dirname + "/" + filename + "\n")
         trustfile = open(dirname + "/" + filename,"w")
         trustfile.write("\n")
         trustfile.close()
-        write_error (http, srcpath, attr, refpath, error, errfile)
     #
     return success, r
 #
@@ -221,7 +229,7 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, csvfile, logfile, err
 # file from the given url, write it to the given directory & filename, output the tuple 
 # (srcurl,attr,refurl) to the given csvfile, and log process to the given logfile.
 #
-def process (srcpath, attr, refpath, dirname, csvfile, logfile, errfile):
+def process (srcpath, attribute, refpath, dirname, csvfile, logfile, errfile):
     #
     # Specify symmetric and asymmetric attributes, http protocol, and local trust.txt filename.
     #
@@ -231,7 +239,7 @@ def process (srcpath, attr, refpath, dirname, csvfile, logfile, errfile):
     srcurl = http + srcpath + "trust.txt"
     refurl = http + refpath + "trust.txt"
     filename = refpath.replace("/", "-") + "trust.txt"
-    
+    attrcount = 0
     #
     # Log beginning of processing the url
     #
@@ -243,7 +251,7 @@ def process (srcpath, attr, refpath, dirname, csvfile, logfile, errfile):
         #
         # Fetch the trust.txt file.
         #
-        success, r = fetchtrust (srcpath, attr, refpath, dirname, filename, csvfile, logfile, errfile)
+        success, r = fetchtrust (srcpath, attribute, refpath, dirname, filename, csvfile, logfile, errfile)
         #
         if (success):
             #
@@ -268,30 +276,44 @@ def process (srcpath, attr, refpath, dirname, csvfile, logfile, errfile):
                 attr = tmpline.split("=",2)
                 if len(attr) == 2:
                     #
-                    # If a valid attribute, then normalize the referenced url and write 
+                    # If a valid attribute, then increment attribute count, normalize the referenced url, and write 
                     # srcurl,attr,refurl to .csv file. Otherwise, write the invalid attribute error.
                     #
                     if (attr[0] in symattr) or (attr[0] in asymattr):
+                        attrcount += 1
                         path = normalize(attr[1])
                         write_csv (http, refpath, attr[0], path, csvfile)
                     else:
-                        write_error (http, refpath, attr, path, "Invalid attribute" + attr[0] + "at line" + linenum)
+                        write_error (http, refpath, attr[0], path, "Invalid attribute" + attr[0] + "at line" + linenum, errfile)
+                        logfile.write ("Invalid attribute" + attr[0] + "at line" + linenum + "\n")
                     #
                     # If attribute is a symmetric one, process the referenced url
                     #
                     if attr[0] in symattr:
                         #
-                        # Generate the filename for the trust.txt file
-                        #
-                        tmpfilename = path.replace("/", "-") + "trust.txt"
-                        #
                         # Process the referenced url
                         #
                         process (refpath, attr[0], path, dirname, csvfile, logfile, errfile)
-    #
-    # Log completion of processing the url
-    #
-    logfile.write ("END: " + refurl + "\n")
+        else:
+            # Set attrcount to -1 (not zero), prevents no attributes error from also being logged
+            #
+            attrcount = -1
+        #
+        # If no attributes were found, log a no attributes error
+        #
+        if (attrcount == 0):
+            write_error ("https://", srcpath, attribute, refpath, refurl + " no attributes found", errfile)
+            logfile.write("No attributes found in: " + refurl + "\n")
+        #
+        # Log completion of processing the url and number of attributes found
+        #
+        logfile.write ("END: " + refurl + ", number of attributes found = " + str(attrcount) + "\n")
+    else:
+        #
+        # Log url as previously fetched
+        #
+        logfile.write ("END: " + refurl + " previously fetched\n")
+        #
     return
 #
 # Main program
@@ -349,7 +371,7 @@ if (not os.path.isdir(dirname)):
     #
     # Process the root url
     #
-    process(path, "self", path, dirname, csvfile, logfile, errfile)
+    retcount = process(path, "self", path, dirname, csvfile, logfile, errfile)
     #
     # Log ending time.
     #

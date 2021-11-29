@@ -48,7 +48,7 @@ echo ".output $DIRNAME/$DIRNAME-stats.csv" >> temp.sql
 echo "select * from stats;" >> temp.sql
 echo ".quit" >> temp.sql
 #
-cat temp.sql | sqlite3 -init init.sql
+cat temp.sql | sqlite3 -init init.sql 2> /dev/null
 rm temp.sql
 #
 # Process the symmetric.csv file to generate the .graphml files.
