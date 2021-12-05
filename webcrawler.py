@@ -21,7 +21,9 @@
 #     - refurl is the referenced URL associated with the attribute.
 # 3. It generates a Webcrawl-YYYY-MM-DD-log.txt file that provides useful debug information.
 # 4. It generates a Webcrawl-YYYY-MM-DD-err.csv file that lists all of the urls that generated
-#    errors under two columns:
+#    errors under four columns:
+#    - the source url referencing the url in error
+#    - the attribute ussed in the reference
 #    - url is the url that generated the error
 #    - error is the error status code or "HTML" if the content is an HTML page or "exception"
 #      if the request throws and exception.
@@ -203,6 +205,10 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, csvfile, logfile, err
             success = False
         else:
             #
+            # Log the content type.
+            #
+            logfile.write ("https://" + refpath + " content type: " + r.headers['Content-Type'] + "\n")
+            #
             # Check if content type is plaintext.
             #
             success = ("Content-Type" in r.headers) and ("text/plain" in r.headers['Content-Type'])
@@ -211,7 +217,6 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, csvfile, logfile, err
             #
             if not success:
                 write_error ("https://", srcpath, attr, refpath, "Content type: " + r.headers['Content-Type'], errfile)
-                logfile.write ("Content type: " + r.headers['Content-Type'] + "\n")
     else:
         #
         # Write a blank trust.txt file, log it, and write to error file.
@@ -276,12 +281,17 @@ def process (srcpath, attribute, refpath, dirname, csvfile, logfile, errfile):
                 attr = tmpline.split("=",2)
                 if len(attr) == 2:
                     #
-                    # If a valid attribute, then increment attribute count, normalize the referenced url, and write 
-                    # srcurl,attr,refurl to .csv file. Otherwise, write the invalid attribute error.
+                    # If a symmetric attribute, then increment attribute count, normalize the referenced url, and write 
+                    # srcurl,attr,refurl to .csv file. If an assymetric attribute, then increment attribute count, and
+                    # write srcurl,attr,refurl to .csv file. Otherwise, write the invalid attribute error.
                     #
-                    if (attr[0] in symattr) or (attr[0] in asymattr):
+                    if (attr[0] in symattr):
                         attrcount += 1
                         path = normalize(attr[1])
+                        write_csv (http, refpath, attr[0], path, csvfile)
+                    elif (attr[0] in asymattr):
+                        attrcount += 1
+                        path = attr[1].strip()
                         write_csv (http, refpath, attr[0], path, csvfile)
                     else:
                         write_error (http, refpath, attr[0], path, "Invalid attribute" + attr[0] + "at line" + linenum, errfile)
