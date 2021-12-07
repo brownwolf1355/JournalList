@@ -220,10 +220,10 @@ if len(sys.argv) > 1:
             if tmpline.startswith("#") or tmpline == "":
                 continue
             #
-            # Get attribute and referenced url. 
+            # Get attribute and referenced url. Ignore attributes with null references, e.g. "control="
             #
             attr = tmpline.split("=",2)
-            if len(attr) == 2:
+            if (len(attr) == 2) and (attr[1] != ""):
                 #
                 # If srcurl and .csv file specified, check to see if present in .csv file.
                 #

@@ -276,10 +276,10 @@ def process (srcpath, attribute, refpath, dirname, csvfile, logfile, errfile):
                 if tmpline.startswith("#") or tmpline == "":
                     continue
                 #
-                # Get attribute and referenced url. 
+                # Get attribute and referenced url. Ignore attributes with null references, e.g. "control="
                 #
                 attr = tmpline.split("=",2)
-                if len(attr) == 2:
+                if (len(attr) == 2) and (attr[1] != ""):
                     #
                     # If a symmetric attribute, then increment attribute count, normalize the referenced url, and write 
                     # srcurl,attr,refurl to .csv file. If an assymetric attribute, then increment attribute count, and
