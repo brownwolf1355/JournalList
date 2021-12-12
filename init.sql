@@ -17,7 +17,6 @@ CREATE TABLE controlledby_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 CREATE TABLE controlledby_count ("srcurl" TEXT, "count" INTEGER);
 CREATE TABLE vendor_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 CREATE TABLE customer_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
-CREATE TABLE attr_count ("srcurl" TEXT, "member_count" INTEGER, "belongto_count" INTEGER);
 /*
  * Create output tables: symmetric links, list of associations, publishers, vendors, and controlled urls, and statistics.
  *

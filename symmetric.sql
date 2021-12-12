@@ -15,9 +15,6 @@ insert into control_list (srcurl,attr,refurl) select * from trust_txt where attr
 insert into controlledby_list (srcurl,attr,refurl) select * from trust_txt where attr = "controlledby" and srcurl != refurl order by srcurl, refurl, attr asc;
 insert into vendor_list (srcurl,attr,refurl) select * from trust_txt where attr = "vendor" order by srcurl, refurl, attr asc;
 insert into customer_list (srcurl,attr,refurl) select * from trust_txt where attr = "customer" order by srcurl, refurl, attr asc;
-insert into attr_count (srcurl,member_count,belongto_count) select distinct trust_txt.srcurl,(select member_count.count from member_count where member_count.srcurl = trust_txt.srcurl),(select belongto_count.count from belongto_count where belongto_count.srcurl = trust_txt.srcurl) from trust_txt order by srcurl;
-update attr_count set member_count = 0 where member_count is null;
-update attr_count set belongto_count = 0 where belongto_count is null;
 /*
  * Generate the list of symmetric links, where:
  *   member_list.refurl = belongto_list.srcurl and belongto_list.refurl = member_list.srcurl or
@@ -25,9 +22,9 @@ update attr_count set belongto_count = 0 where belongto_count is null;
  *   vendor_list.refurl = customer_list.srcurl and customer_list.refurl = vendor_list.srcurl
  *
  */
-insert into symmetric_list (srcurl1,attr1,refurl1,srcurl2,attr2,refurl2) select * from member_list join belongto_list on member_list.refurl = belongto_list.srcurl and belongto_list.refurl = member_list.srcurl;
-insert into symmetric_list (srcurl1,attr1,refurl1,srcurl2,attr2,refurl2) select * from control_list join controlledby_list on control_list.refurl = controlledby_list.srcurl and controlledby_list.refurl = control_list.srcurl;
-insert into symmetric_list (srcurl1,attr1,refurl1,srcurl2,attr2,refurl2) select * from vendor_list join customer_list on vendor_list.refurl = customer_list.srcurl and customer_list.refurl = vendor_list.srcurl;
+insert into symmetric_list (srcurl1,attr1,refurl1,srcurl2,attr2,refurl2) select distinct * from member_list join belongto_list on member_list.refurl = belongto_list.srcurl and belongto_list.refurl = member_list.srcurl;
+insert into symmetric_list (srcurl1,attr1,refurl1,srcurl2,attr2,refurl2) select distinct * from control_list join controlledby_list on control_list.refurl = controlledby_list.srcurl and controlledby_list.refurl = control_list.srcurl;
+insert into symmetric_list (srcurl1,attr1,refurl1,srcurl2,attr2,refurl2) select distinct * from vendor_list join customer_list on vendor_list.refurl = customer_list.srcurl and customer_list.refurl = vendor_list.srcurl;
 /*
  * Generate the list of asymmetric links, where: the refurl matches the refurl on an HTTP GET error.
  *
