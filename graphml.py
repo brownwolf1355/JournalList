@@ -454,6 +454,10 @@ if (os.path.isdir(dirname)):
             if (attr not in symattr):
                 continue
             #
+            # Determine edge labels.
+            #
+            forward, backward = edgelabels (attr)
+            #
             # Determine node colors and write node if necessary and unidirectional edge to gmlfile and asymfile output files.
             #
             srccolor, srcborder = nodecolor (srcurl, associations, publishers, vendors, controlled, True)
