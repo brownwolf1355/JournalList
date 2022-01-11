@@ -86,3 +86,5 @@ insert into stats (title) values ("Number of Symmetric Relationships");
 update stats set count = (select count (srcurl1) from symmetric_list) where count is null;
 insert into stats (title) values ("Number of Asymmetric Relationships");
 update stats set count = (select count (srcurl) from asymmetric_list) where count is null;
+update stats set count = (select sum(count) from stats where title = "Number of Associations" or title = "Number of Publishers" or title = "Number of Vendors") where title = "Ecosystem Total";
+update stats set count = (select sum(count) from stats where title = "Number of Association Members of JournalList" or title = "Number of Publisher Members of JournalList" or title = "Number of Vendor Members of JournalList") where title = "JournalList Total";
