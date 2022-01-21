@@ -14,8 +14,21 @@
 #--------------------------------------------------------------------------------------------------
 import sys
 import os
-import time
 import requests
+#
+# import ssl
+# from urllib3.poolmanager import PoolManager
+# from requests.adapters import HTTPAdapter
+#
+# Transport adapter" that allows us to use SSLv 1.2 and later
+# From: https://docs.python-requests.org/en/master/user/advanced/#example-specific-ssl-version
+# and: https://stackoverflow.com/questions/29153271/sending-tls-1-2-request-in-python-2-6
+#
+# class Ssl3HttpAdapter(HTTPAdapter):
+#     def init_poolmanager(self, connections, maxsize, block=False):
+#         self.poolmanager = PoolManager(
+#             num_pools=connections, maxsize=maxsize,
+#             block=block, ssl_version=ssl.PROTOCOL_SSLv23 | ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1)
 #
 # normalize(url) - Normalize url path to the form "www.domain.com/", (e.g., all lowercase, with
 # leading "www." and trailing "/"). Strip the leading "http[s]://" if necessary.
@@ -108,7 +121,9 @@ def fetchtrust (refpath):
     #
     # Try using "http" first.
     #
-    refurl = "http://" + refpath[8:len(refpath)]
+    http = "http://"
+    refurl = http + refpath[8:len(refpath)]
+    # print ("Trying: ", refurl)
     #
     success, exception, r, error = fetchurl (refurl)
     # print ("Fetch results: ", success, exception, r, error)
@@ -118,21 +133,27 @@ def fetchtrust (refpath):
         # Try Try using "http" and dropping the "www."
         #
         refurl = "http://" + refpath[12:len(refpath)]
+        # print ("Trying: ", refurl)
         success, exception, r, error = fetchurl (refurl)
+        # print ("Fetch results: ", success, exception, r, error)
         #
         if exception:
             #
             # Try using "https"
             #
             refurl = refpath
+            # print ("Trying: ", refurl)
             success, exception, r, error = fetchurl (refurl)
+            # print ("Fetch results: ", success, exception, r, error)
             #
             if exception:
                 #
                 # Try using "https" and dropping the "www."
                 #
                 refurl = "https://" + refpath[12:len(refpath)]
+                # print ("Trying: ", refurl)
                 success, exception, r, error = fetchurl (refurl)
+                # print ("Fetch results: ", success, exception, r, error)
                 #
     return success, exception, r, error
 #

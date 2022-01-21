@@ -164,7 +164,7 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, csvfile, logfile, err
         #
         # Try using "http" and dropping the "www."
         #
-        refurl = http + refpath[4:len(refpath)]
+        refurl = http + refpath[4:len(refpath)] + "trust.txt"
         logfile.write("Trying: " + refurl + "\n")
         success, exception, r, error = fetchurl (refurl)
         #
@@ -173,7 +173,7 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, csvfile, logfile, err
             # Try using "https"
             #
             http = "https://"
-            refurl = http + refpath
+            refurl = http + refpath + "trust.txt"
             logfile.write("Trying: " + refurl + "\n")
             success, exception, r, error = fetchurl (refurl)
             #
@@ -181,7 +181,7 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, csvfile, logfile, err
                 #
                 # Try using "https" and dropping the "www."
                 #
-                refurl = http + refpath[4:len(refpath)]
+                refurl = http + refpath[4:len(refpath)] + "trust.txt"
                 logfile.write("Trying: " + refurl + "\n")
                 success, exception, r, error = fetchurl (refurl)    
     if success:

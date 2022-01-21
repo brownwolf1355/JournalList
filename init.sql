@@ -8,13 +8,9 @@
  *
  */
 CREATE TABLE member_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
-CREATE TABLE member_count ("srcurl" TEXT, "count" INTEGER);
 CREATE TABLE belongto_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
-CREATE TABLE belongto_count ("srcurl" TEXT, "count" INTEGER);
 CREATE TABLE control_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
-CREATE TABLE control_count ("srcurl" TEXT, "count" INTEGER);
 CREATE TABLE controlledby_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
-CREATE TABLE controlledby_count ("srcurl" TEXT, "count" INTEGER);
 CREATE TABLE vendor_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 CREATE TABLE customer_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 /*
@@ -27,6 +23,8 @@ CREATE TABLE associations_list ("srcurl" TEXT);
 CREATE TABLE publishers_list ("srcurl" TEXT);
 CREATE TABLE vendors_list ("srcurl" TEXT);
 CREATE TABLE controlled_list ("srcurl" TEXT);
+CREATE TABLE control_dups ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
+CREATE TABLE controlledby_dups ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 CREATE TABLE temp_list ("srcurl" TEXT);
 create table stats ("title" TEXT, "count" INTEGER);
 /*

@@ -8,9 +8,7 @@
  *
  */
 insert into member_list (srcurl,attr,refurl) select * from trust_txt where attr = "member" order by srcurl, refurl, attr asc;
-insert into member_count (srcurl,count) select srcurl, count(*) from member_list group by srcurl;
 insert into belongto_list (srcurl,attr,refurl) select * from trust_txt where attr = "belongto" order by srcurl, refurl, attr asc;
-insert into belongto_count (srcurl,count) select srcurl, count(*) from belongto_list group by srcurl;
 insert into control_list (srcurl,attr,refurl) select * from trust_txt where attr = "control" and srcurl != refurl order by srcurl, refurl, attr asc;
 insert into controlledby_list (srcurl,attr,refurl) select * from trust_txt where attr = "controlledby" and srcurl != refurl order by srcurl, refurl, attr asc;
 insert into vendor_list (srcurl,attr,refurl) select * from trust_txt where attr = "vendor" order by srcurl, refurl, attr asc;
@@ -62,6 +60,12 @@ delete from temp_list where srcurl is not null;
  */
 insert into controlled_list (srcurl) select distinct refurl from control_list;
 insert into controlled_list (srcurl) select distinct srcurl from controlledby_list;
+/*
+ * Generate the list of control and controlledby duplicates
+ *
+ */
+insert into control_dups (srcurl,attr,refurl) select * from control_list where refurl in (select refurl from control_list group by refurl having count (refurl) > 1) order by refurl;
+insert into controlledby_dups (srcurl,attr,refurl) select * from controlledby_list where srcurl in (select srcurl from controlledby_list group by srcurl having count (srcurl) > 1) order by srcurl;
 /*
  * Generate the statistics for associations, publishers, vendors, JournalList members, symmetric and asymmetric relationships.
  *

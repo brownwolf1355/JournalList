@@ -44,6 +44,10 @@ echo ".output $DIRNAME/$DIRNAME-vendors.csv" >> temp.sql
 echo "select * from vendors_list;" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-controlled.csv" >> temp.sql
 echo "select * from controlled_list;" >> temp.sql
+echo ".output $DIRNAME/$DIRNAME-control_dups.csv" >> temp.sql
+echo "select * from control_dups;" >> temp.sql
+echo ".output $DIRNAME/$DIRNAME-controlledby_dups.csv" >> temp.sql
+echo "select * from controlledby_dups;" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-stats.csv" >> temp.sql
 echo "select * from stats;" >> temp.sql
 echo ".quit" >> temp.sql
