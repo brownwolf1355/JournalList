@@ -32,8 +32,9 @@ insert into asymmetric_list (srcurl,attr,refurl) select trust_txt.srcurl, trust_
  * Generate the list of associations, publishers, and vendors.
  *
  * Associations = srcurl of any that contain "member" attributes, refurl of any that contain "belongto" attributes, and any refurls they control (Only associations have members, publishers and vendors do not)
- * Vendors = srcurl of any that contain "customer" attributes, any refurls that contain "vendor" attributes, and any refurls they control (Only vendors have customers or are vendors)
- * Publishers = srcurl of any that contain "belongto" attributes and are not associations or vendors, any refurls that contain "member" attributes and are not associations or vendors, and any refurls they control
+ * Vendors = srcurl of any that contain "customer" attributes, any refurls that contain "vendor" attributes, and any refurls they control (Only vendors have customers or are vendors to other srcurls)
+ * Publishers = srcurl of any that contain "belongto" attributes and are not associations or vendors, any refurls that contain "member" attributes and are not associations or vendors, any refurls that contain "customer" and are not associations or vendors, 
+ * and any refurls they control
  * 
  */
 insert into temp_list (srcurl) select distinct srcurl from member_list;
@@ -50,6 +51,7 @@ delete from temp_list where srcurl is not null;
 #
 insert into temp_list (srcurl) select distinct srcurl from belongto_list;
 insert into temp_list (srcurl) select distinct refurl from member_list;
+insert into temp_list (srcurl) select distinct refurl from customer_list;
 insert into temp_list (srcurl) select distinct refurl from control_list join temp_list where control_list.srcurl = temp_list.srcurl;
 insert into publishers_list (srcurl) select distinct temp_list.srcurl from temp_list where (temp_list.srcurl not in (select associations_list.srcurl from associations_list) and temp_list.srcurl not in (select vendors_list.srcurl from vendors_list)) order by temp_list.srcurl;
 delete from temp_list where srcurl is not null;

@@ -232,6 +232,7 @@ def matchsym (line, symmetric):
     #
     # Add the reverse direction to the line.
     #
+    # print ("line = ", line)
     temp = line.split(",",2)
     srcurl = temp[0].strip()
     attr = temp[1].strip()
@@ -385,7 +386,7 @@ if (os.path.isdir(dirname)):
                 elif (attr == "controlledby"):
                     temp = refurl + ",control," + srcurl
                 elif (attr == "customer"):
-                    temp = refurl + "vendor" + srcurl
+                    temp = refurl + ",vendor," + srcurl
                 #
                 match = matchsym (temp, symmetric)
                 #
