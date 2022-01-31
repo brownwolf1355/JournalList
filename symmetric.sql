@@ -33,8 +33,8 @@ insert into asymmetric_list (srcurl,attr,refurl) select trust_txt.srcurl, trust_
  *
  * Associations = srcurl of any that contain "member" attributes, refurl of any that contain "belongto" attributes, and any refurls they control (Only associations have members, publishers and vendors do not)
  * Vendors = srcurl of any that contain "customer" attributes, any refurls that contain "vendor" attributes, and any refurls they control (Only vendors have customers or are vendors to other srcurls)
- * Publishers = srcurl of any that contain "belongto" attributes and are not associations or vendors, any refurls that contain "member" attributes and are not associations or vendors, any refurls that contain "customer" and are not associations or vendors, 
- * and any refurls they control
+ * Publishers = srcurl of any that contain "belongto" attributes and are not associations or vendors, any refurls that contain "member" attributes and are not associations or vendors, any refurls that contain "customer" 
+ * and are not associations or vendors, and any refurls they control
  * 
  */
 insert into temp_list (srcurl) select distinct srcurl from member_list;

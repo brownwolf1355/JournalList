@@ -14,6 +14,7 @@
 #--------------------------------------------------------------------------------------------------
 import sys
 import os
+from numpy import triu_indices_from
 import requests
 #
 # import ssl
@@ -29,34 +30,56 @@ import requests
 #         self.poolmanager = PoolManager(
 #             num_pools=connections, maxsize=maxsize,
 #             block=block, ssl_version=ssl.PROTOCOL_SSLv23 | ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1)
-#
-# normalize(url) - Normalize url path to the form "www.domain.com/", (e.g., all lowercase, with
-# leading "www." and trailing "/"). Strip the leading "http[s]://" if necessary.
+# Because of the vagaries of how urls are used in trust.txt files it is necessary to normalize them so that they can be matched 
+# appropriately in the database.
+# 
+# normalize(url) - Normalize a url to provide just the path in the form "www.domain.com/[path]/" by:
+# 1. Remove the leading "http[s]://" if necessary
+# 2. Add trailing "/" if necessary
+# 3. Convert the domain to lowercase.
+# 4. Remove the trailing "trust.txt" if necessary
 # 
 def normalize (url):
-    # Stip whitespace, convert to lower case, make sure there is a leading "www." and trailing "/", return protocol and path separately.
-    #
-    tmpurl = url.strip().lower()
     #
     # Remove leading protocol, if necessary
     #
-    if ("http://" in tmpurl):
-        tmppath1 = tmpurl[7:len(tmpurl)]
-    elif ("https://" in tmpurl):
-        tmppath1 = tmpurl[8:len(tmpurl)]
+    if (url.startswith("http://")):
+        tmppath1 = url[7:len(url)]
+    elif (url.startswith("https://")):
+        tmppath1 = url[8:len(url)]
     else:
-        tmppath1 = tmpurl
+        tmppath1 = url
     #
-    # Add trailing "/" and leading "www." to urlpath, if necessary
+    # Add leading "www." to urlpath, if necessary
     #
-    if tmpurl.endswith("/"):
+    if (tmppath1.startswith("www.")):
         tmppath2 = tmppath1
     else:
-        tmppath2 = tmppath1 + "/"
-    if ("www." in tmppath2):
-        urlpath = tmppath2
+        tmppath2 = "www." + tmppath1
+    #
+    # Add trailing "/" to urlpath, if necessary
+    #
+    if url.endswith("/"):
+        tmppath3 = tmppath2
     else:
-        urlpath = "www." + tmppath2
+        tmppath3 = tmppath2 + "/"
+    #
+    # Split the path into domain and path, convert domain to lowercase.
+    #
+    splitpath = tmppath3.split("/",1)
+    domain = splitpath[0].lower()
+    tmppath4 = domain + "/" + splitpath[1]
+    #
+    # Add or remove trailing "trust.txt[/]" if necessary.
+    #
+    if (tmppath4.endswith("trust.txt/")):
+        urlpath = tmppath4[0:len(tmppath4)-10]
+    elif (tmppath4.endswith("trust.txt")):
+        urlpath = tmppath4[0:len(tmppath4)-9]
+    else:
+        urlpath = tmppath4
+    #
+    # print (url, "normalized to", urlpath)
     #
     return urlpath
 #
@@ -119,6 +142,11 @@ def fetchurl(url):
 #
 def fetchtrust (refpath):
     #
+    # Set list of domain registrars to check for expired domains.
+    #
+    registrars = "www.hugedomains.com,www.domain.com,www.godaddy.com,www.namecheap.com,www.name.com,www.enom.com,www.dynadot.com,www.namesilo.com,www.123-reg.co.uk,www.bluehost.com"
+    redirect = False
+    #
     # Try using "http" first.
     #
     http = "http://"
@@ -155,7 +183,36 @@ def fetchtrust (refpath):
                 success, exception, r, error = fetchurl (refurl)
                 # print ("Fetch results: ", success, exception, r, error)
                 #
-    return success, exception, r, error
+    #
+    # Fall through to here after trying different url forms
+    #
+    if not exception:
+        #
+        # If there was no exception, then check if their was a redirect to a different domain.
+        #
+        # Normalize refurl and the returned url
+        # 
+        path1 = normalize (refurl)
+        path2 = normalize (r.url)
+        #
+        # Check for a redirect to another domain.
+        #
+        if (path1[0:len(path1)-1] != path2[0:len(path1)-1]):
+            #
+            # Set redirect to True
+            #
+            redirect = True
+            #
+            # If redirect domain is a domain registrar, set success to False, exception to True, and set error message.
+            #
+            splitpath = path2.split("/",2)
+            domain = splitpath[0].lower()
+            if (domain in registrars):
+                success = False
+                exception = True
+                error = "HTTP GET domain registration expired redirects to " + r.url
+    #
+    return success, exception, r, error, redirect
 #
 # Read the Webcrawl.csv file and filter out the "control" and "controlledby" entries.
 #
@@ -186,6 +243,33 @@ def checkattr (srcurl, attr, refurl, srclist, attrlist, reflist, linenum):
         if (srcurl != srclist[index]) and (attr == attrlist[index]) and (refurl == reflist[index]):
             temp = srclist[index] + "," + attrlist[index] + "," + reflist[index]
             print ("Warning at line:", linenum, "attribute and refurl also used in:", temp)
+#
+# Check if top level domains match
+#
+def checktld (url1, url2):
+    tmpurl = url1
+    if ("trust.txt" in tmpurl):
+        length = len(tmpurl) - 9
+    else:
+        length = len(tmpurl)
+    if ("http://" in tmpurl):
+        tmppath1 = tmpurl[7:length]
+    elif ("https://" in tmpurl):
+        tmppath1 = tmpurl[8:length]
+    else:
+        tmppath1 = tmpurl
+    tmpurl = url2
+    if ("trust.txt" in tmpurl):
+        length = len(tmpurl) - 9
+    else:
+        length = len(tmpurl)
+    if ("http://" in tmpurl):
+        tmppath2 = tmpurl[7:length]
+    elif ("https://" in tmpurl):
+        tmppath2 = tmpurl[8:length]
+    else:
+        tmppath2 = tmpurl
+    return (tmppath1 == tmppath2)
 #
 # Main program
 #
@@ -228,9 +312,9 @@ if len(sys.argv) > 1:
         for line in lines:
             linenum += 1
             #
-            # Remove leading and trailing white space, convert to lowercase, remove any "\x00" chacters.
+            # Remove leading and trailing white space, remove any "\00" chacters.
             #
-            tmpline = line.strip().lower().replace("\00","")
+            tmpline = line.strip().replace("\00","")
             #
             # Check if "journallist.net" is in file.
             if (not jlfound):
@@ -255,24 +339,31 @@ if len(sys.argv) > 1:
                 #
                 # If it is a symmetric attribute, then normalize the referenced url and check the referenced trust.txt file. 
                 # If it is an asymmetric attribute, then normalize the referenced url and check the referenced url for html text.
-                # Otherwise, write the invalid attribute error.
+                # Otherwise, print the invalid attribute error.
                 #
                 if (attr[0] in symattr):
                     attrcount += 1
                     path = normalize(attr[1])
                     server = "https://" + path
                     url = server + "trust.txt"
-                    success, exception, r, error = fetchtrust(url)
+                    success, exception, r, error, redirect = fetchtrust(url)
+                    #
+                    # If there is a redirect, print warning.
+                    #
+                    if redirect:
+                        print ("Warning at line:",linenum,line.strip(),"-",url, "redirects to", r.url)
                     if not success:
                         if exception:
                             print ("Error at line:",linenum,line.strip(),"- unable to connect with server -",server,"-",error)
                             whoislist.append(path[4:len(path)-1])
                         else:
-                            print ("Error at line:",linenum,line.strip(),"- missing trust.txt file -",url,"-",error)
+                            print ("Error at line:",linenum,line.strip(),"- trust.txt file not found -",url,"-",error)
                 elif (attr[0] in asymattr):
                     attrcount += 1
                     path = normalize(attr[1])
-                    success, exception, r, error = fetchtrust("https://" + path)
+                    success, exception, r, error, redirect = fetchtrust("https://" + path)
+                    if redirect:
+                        print ("Warning at line:",linenum,line.strip(),"-",url, "redirects to", r.url)
                     if not success and not exception and (not (("Content-Type" in r.headers) and ("text/html" in r.headers['Content-Type']))):
                         print ("Error at line:",linenum,line.strip(),"- missing trust.txt file -",url,"-",error)
                     elif exception:
