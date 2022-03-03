@@ -138,19 +138,71 @@ def fetchurl(url):
     #
     return success, exception, r, error
 #
-# fetchtrust (refpath)
+# chkredirect (url,rurl) - Check if the url used in the HTTP GET request is redirected on the returned response url (rurl) and if it is to a
+# domain registrar, indicating that the domain has expired. Return redirect, success, exception, error
 #
-def fetchtrust (refpath):
+def chkredirect (url,rurl):
     #
     # Set list of domain registrars to check for expired domains.
     #
     registrars = "www.hugedomains.com,www.domain.com,www.godaddy.com,www.namecheap.com,www.name.com,www.enom.com,www.dynadot.com,www.namesilo.com,www.123-reg.co.uk,www.bluehost.com"
     redirect = False
+    success = True
+    exception = False
+    error = ""
+    #
+    # Remove protocol from url and response.url
+    #
+    if (url.startswith("http://")):
+        http = "http://"
+        path = url[len(http):len(url)]
+    elif (url.startswith("https://")):
+        http = "https://"
+        path = url[len(http):len(url)]
+    else:
+        http = ""
+        path = url
+    #
+    if (rurl.startswith("http://")):
+        rhttp = "http://"
+        rpath = rurl[len(rhttp):len(rurl)]
+    elif (rurl.startswith("https://")):
+        rhttp = "https://"
+        rpath = rurl[len(rhttp):len(rurl)]
+    else:
+        rhttp = ""
+        rpath = rurl
+    #
+    # Split into domain and path
+    #
+    splitpath = path.split("/",1)
+    domain = splitpath[0].lower()
+    rsplitpath = rpath.split("/",1)
+    rdomain = rsplitpath[0].lower()
+    #
+    # Check for a redirect to another domain.
+    #
+    redirect = (domain != rdomain)
+    if redirect:
+        #
+        # If redirect domain is a domain registrar, set success to False, exception to True, and set error message.
+        #
+        if (rdomain in registrars):
+            success = False
+            exception = True
+            error = "HTTP GET domain registration expired - redirects to " + rurl
+    #
+    return redirect, success, exception, error
+#
+# fetchtrust (refpath)
+#
+def fetchtrust (refpath):
     #
     # Try using "http" first.
     #
     http = "http://"
-    refurl = http + refpath[8:len(refpath)]
+    path = refpath[8:len(refpath)]
+    refurl = http + path
     # print ("Trying: ", refurl)
     #
     success, exception, r, error = fetchurl (refurl)
@@ -160,7 +212,8 @@ def fetchtrust (refpath):
         #
         # Try Try using "http" and dropping the "www."
         #
-        refurl = "http://" + refpath[12:len(refpath)]
+        path = refpath[12:len(refpath)]
+        refurl = http + path
         # print ("Trying: ", refurl)
         success, exception, r, error = fetchurl (refurl)
         # print ("Fetch results: ", success, exception, r, error)
@@ -169,7 +222,9 @@ def fetchtrust (refpath):
             #
             # Try using "https"
             #
-            refurl = refpath
+            http = "https://"
+            path = refpath[8:len(refpath)]
+            refurl = http + path
             # print ("Trying: ", refurl)
             success, exception, r, error = fetchurl (refurl)
             # print ("Fetch results: ", success, exception, r, error)
@@ -178,41 +233,17 @@ def fetchtrust (refpath):
                 #
                 # Try using "https" and dropping the "www."
                 #
-                refurl = "https://" + refpath[12:len(refpath)]
+                http = "https://"
+                path = refpath[12:len(refpath)]
+                refurl = http + path
                 # print ("Trying: ", refurl)
                 success, exception, r, error = fetchurl (refurl)
                 # print ("Fetch results: ", success, exception, r, error)
                 #
     #
-    # Fall through to here after trying different url forms
+    # Fall through to here after trying the different url forms.
     #
-    if not exception:
-        #
-        # If there was no exception, then check if their was a redirect to a different domain.
-        #
-        # Normalize refurl and the returned url
-        # 
-        path1 = normalize (refurl)
-        path2 = normalize (r.url)
-        #
-        # Check for a redirect to another domain.
-        #
-        if (path1[0:len(path1)-1] != path2[0:len(path1)-1]):
-            #
-            # Set redirect to True
-            #
-            redirect = True
-            #
-            # If redirect domain is a domain registrar, set success to False, exception to True, and set error message.
-            #
-            splitpath = path2.split("/",2)
-            domain = splitpath[0].lower()
-            if (domain in registrars):
-                success = False
-                exception = True
-                error = "HTTP GET domain registration expired redirects to " + r.url
-    #
-    return success, exception, r, error, redirect
+    return success, exception, r, error
 #
 # Read the Webcrawl.csv file and filter out the "control" and "controlledby" entries.
 #
@@ -337,39 +368,37 @@ if len(sys.argv) > 1:
                         refurl = normalize(attr[1])
                         checkattr ("https://" + srcurl, attr[0], "https://" + refurl, srclist, attrlist, reflist, linenum)
                 #
-                # If it is a symmetric attribute, then normalize the referenced url and check the referenced trust.txt file. 
-                # If it is an asymmetric attribute, then normalize the referenced url and check the referenced url for html text.
-                # Otherwise, print the invalid attribute error.
+                # If it is a symmetric attribute, then normalize the referenced url and check for the referenced trust.txt file. 
+                # Else if it is not an assymetric attribute, print an invalid attribute error.
                 #
                 if (attr[0] in symattr):
                     attrcount += 1
                     path = normalize(attr[1])
-                    server = "https://" + path
-                    url = server + "trust.txt"
-                    success, exception, r, error, redirect = fetchtrust(url)
+                    url = "https://" + path + "trust.txt"
+                    success, exception, r, error = fetchtrust(url)
                     #
-                    # If there is a redirect, print warning.
+                    # If not successful print an error
                     #
-                    if redirect:
-                        print ("Warning at line:",linenum,line.strip(),"-",url, "redirects to", r.url)
                     if not success:
+                        #
+                        # If there was an exception, server was unreachable. Otherwise, 
+                        #
                         if exception:
-                            print ("Error at line:",linenum,line.strip(),"- unable to connect with server -",server,"-",error)
+                            print ("Error at line:",linenum,line.strip(),"- unable to connect with server -",path,"-",error)
                             whoislist.append(path[4:len(path)-1])
                         else:
                             print ("Error at line:",linenum,line.strip(),"- trust.txt file not found -",url,"-",error)
-                elif (attr[0] in asymattr):
-                    attrcount += 1
-                    path = normalize(attr[1])
-                    success, exception, r, error, redirect = fetchtrust("https://" + path)
-                    if redirect:
-                        print ("Warning at line:",linenum,line.strip(),"-",url, "redirects to", r.url)
-                    if not success and not exception and (not (("Content-Type" in r.headers) and ("text/html" in r.headers['Content-Type']))):
-                        print ("Error at line:",linenum,line.strip(),"- missing trust.txt file -",url,"-",error)
-                    elif exception:
-                        print ("Error at line:",linenum,line.strip(),"- unable to connect with server -",server,"-",error)
-                        whoislist.append(path[4:len(path)-1])
-                else:
+                    #
+                    # If there there wasn't an exception, check for redirect.
+                    #
+                    if not exception:
+                        redirect, success, exception, error = chkredirect(url, r.url)
+                        if redirect:
+                            print ("Warning at line:",linenum,line.strip(),"-",url, "redirects to", r.url)
+                            if exception:
+                                print ("Error at line:",linenum,line.strip(),"-",error)
+                #
+                elif (attr[0] not in asymattr):
                     print ("Invalid attribute at line:",linenum,attr[0])
         #
         # Check if no attributes found

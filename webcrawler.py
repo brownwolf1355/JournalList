@@ -221,34 +221,6 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
     #
     # Fall through to here after trying different url forms
     #
-    if not exception:
-        #
-        # If there was no exception, then check if their was a redirect to a different domain.
-        #
-        # Normalize refurl and the returned url
-        # 
-        path1 = normalize (refurl)
-        path2 = normalize (r.url)
-        #
-        # Check for a redirect to another domain.
-        #
-        if (path1[0:len(path1)-1] != path2[0:len(path1)-1]):
-            #
-            # Log redirect
-            #
-            logfile.write (refurl + " redirects to " + r.url + "\n")
-            #
-            # If redirect domain is a domain registrar, set success to False and set error message. Otherwise, write redirect to redirect list. 
-            #
-            splitpath = path2.split("/",2)
-            domain = splitpath[0].lower()
-            if (domain in registrars):
-                success = False
-                error = "HTTP GET domain registration expired redirects to " + r.url
-            else:
-                http = "https://"
-                redirfile.write (http + path1 + "," + http + path2 + "\n")
-        #
     if success:
         #
         # Log the status code
@@ -293,6 +265,32 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
         trustfile.write("\n")
         trustfile.close()
     #
+    # If there was no exception, then check if their was a redirect to a different domain.
+    #
+    if not exception:
+        #
+        # Normalize refurl and the returned url
+        # 
+        path1 = normalize (refurl)
+        path2 = normalize (r.url)
+        #
+        # Check for a redirect to another domain.
+        #
+        if (path1[0:len(path1)-1] != path2[0:len(path1)-1]):
+            #
+            # Log redirect and write to redirect file.
+            #
+            logfile.write (refurl + " redirects to " + r.url + "\n")
+            redirfile.write (refurl + "," + r.url + "\n")
+            #
+            # If redirect domain is a domain registrar, set success to False and set error message.
+            #
+            splitpath = path2.split("/",2)
+            domain = splitpath[0].lower()
+            if (domain in registrars):
+                success = False
+                error = "HTTP GET domain registration expired redirects to " + r.url
+        #
     return success, r
 #
 # process(srcpath, attribute, refpath, dirname, csvfile, logfile, errfile) - Process the given refpath by retrieving the trust.txt 
