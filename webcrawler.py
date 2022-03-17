@@ -329,9 +329,12 @@ def process (srcpath, attribute, refpath, dirname, csvfile, redirfile, logfile, 
             for line in lines:
                 linenum += 1
                 #
-                # Remove leading and trailing white space, and remove any "\00" chacters.
+                # Remove leading and trailing white space, and remove any non-ASCII chacters (using encode to create bytes object and decode to
+                # convert bytes object back to str), remove any null characters "\00"
                 #
-                tmpline = line.strip().replace("\00","")
+                bytesline = line.strip().encode("ascii","ignore")
+                tmp1line = bytesline.decode("ascii","ignore")
+                tmpline = tmp1line.replace("\00","")
                 #
                 # Skip this line if it is a comment line (begins with "#") or is an empty line
                 #
@@ -346,13 +349,13 @@ def process (srcpath, attribute, refpath, dirname, csvfile, redirfile, logfile, 
                     # If a symmetric or assymetric attribute, then increment attribute count, normalize the referenced url, and write 
                     # srcurl,attr,refurl to .csv file. Otherwise, log the invalid attribute error.
                     #
+                    path = normalize(attr[1])
                     if (attr[0] in symattr) or (attr[0] in asymattr):
                         attrcount += 1
-                        path = normalize(attr[1])
                         write_csv (http, refpath, attr[0], path, csvfile)
                     else:
-                        write_error (http, refpath, attr[0], path, "Invalid attribute" + attr[0] + "at line" + linenum, errfile)
-                        logfile.write ("Invalid attribute" + attr[0] + "at line" + linenum + "\n")
+                        write_error (http, refpath, attr[0], path, "Invalid attribute" + attr[0] + "at line " + str(linenum), errfile)
+                        logfile.write ("Invalid attribute" + attr[0] + "at line " + str(linenum) + "\n")
                     #
                     # If attribute is a symmetric one, process the referenced url
                     #

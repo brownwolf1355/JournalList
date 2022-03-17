@@ -343,9 +343,12 @@ if len(sys.argv) > 1:
         for line in lines:
             linenum += 1
             #
-            # Remove leading and trailing white space, remove any "\00" chacters.
+            # Remove leading and trailing white space, and remove any non-ASCII chacters (using encode to create bytes object and decode to
+            # convert bytes object back to str), remove any null characters "\00"
             #
-            tmpline = line.strip().replace("\00","")
+            bytesline = line.strip().encode("ascii","ignore")
+            tmp1line = bytesline.decode("ascii","ignore")
+            tmpline = tmp1line.replace("\00","")
             #
             # Check if "journallist.net" is in file.
             if (not jlfound):
