@@ -69,6 +69,12 @@ insert into controlled_list (srcurl) select distinct srcurl from controlledby_li
 insert into control_dups (srcurl,attr,refurl) select * from control_list where refurl in (select refurl from control_list group by refurl having count (refurl) > 1) order by refurl;
 insert into controlledby_dups (srcurl,attr,refurl) select * from controlledby_list where srcurl in (select srcurl from controlledby_list group by srcurl having count (srcurl) > 1) order by srcurl;
 /*
+ * Generate the complete membership set (include both member and belongto attributes)
+ *
+ */
+insert into membership_total (srcurl,refurl) select srcurl,refurl from member_list;
+insert into membership_total (srcurl,refurl) select refurl,srcurl from belongto_list;
+/*
  * Generate the statistics for associations, publishers, vendors, JournalList members, symmetric and asymmetric relationships.
  *
  */

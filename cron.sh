@@ -33,21 +33,23 @@ echo ".import $DIRNAME/$DIRNAME.csv trust_txt" > temp.sql
 echo ".import $DIRNAME/$DIRNAME-err.csv http_errors" >> temp.sql
 echo ".read symmetric.sql" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-symmetric.csv" >> temp.sql
-echo "select * from symmetric_list;" >> temp.sql
+echo "select distinct * from symmetric_list;" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-asymmetric.csv" >> temp.sql
-echo "select * from asymmetric_list;" >> temp.sql
+echo "select distinct * from asymmetric_list;" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-associations.csv" >> temp.sql
-echo "select * from associations_list;" >> temp.sql
+echo "select distinct * from associations_list;" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-publishers.csv" >> temp.sql
-echo "select * from publishers_list;" >> temp.sql
+echo "select distinct * from publishers_list;" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-vendors.csv" >> temp.sql
-echo "select * from vendors_list;" >> temp.sql
+echo "select distinct * from vendors_list;" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-controlled.csv" >> temp.sql
-echo "select * from controlled_list;" >> temp.sql
+echo "select distinct * from controlled_list;" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-control_dups.csv" >> temp.sql
-echo "select * from control_dups;" >> temp.sql
+echo "select distinct * from control_dups;" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-controlledby_dups.csv" >> temp.sql
-echo "select * from controlledby_dups;" >> temp.sql
+echo "select distinct * from controlledby_dups;" >> temp.sql
+echo ".output $DIRNAME/$DIRNAME-membership.csv" >> temp.sql
+echo "select distinct * from membership_total order by refurl;" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-stats.csv" >> temp.sql
 echo "select * from stats;" >> temp.sql
 echo ".quit" >> temp.sql
@@ -58,3 +60,9 @@ rm temp.sql
 # Process the symmetric.csv file to generate the .graphml files.
 #
 python3.10 graphml.py $DIRNAME
+#
+# Output the start time and end time
+#
+echo "JournalList trust.txt webcrawl"
+head -n 1 $DIRNAME/$DIRNAME-log.txt
+tail -n 1 $DIRNAME/$DIRNAME-log.txt

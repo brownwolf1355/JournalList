@@ -25,6 +25,7 @@ CREATE TABLE vendors_list ("srcurl" TEXT);
 CREATE TABLE controlled_list ("srcurl" TEXT);
 CREATE TABLE control_dups ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 CREATE TABLE controlledby_dups ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
+CREATE TABLE membership_total ("srcurl" TEXT, "refurl" TEXT);
 CREATE TABLE temp_list ("srcurl" TEXT);
 create table stats ("title" TEXT, "count" INTEGER);
 /*
