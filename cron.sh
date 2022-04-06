@@ -61,6 +61,10 @@ rm temp.sql
 #
 python3.10 graphml.py $DIRNAME
 #
+# Generate the JSON files for ArangoDB graph database
+#
+bash genjson.sh $DIRNAME
+#
 # Output the start time and end time
 #
 echo "JournalList trust.txt webcrawl"
