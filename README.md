@@ -13,6 +13,9 @@ It contains the following files:
 - graphml.py - a python script that generates three graphml files containing the symmetric links, the assymetric links, and the full ecosystem including
   both the symmetric and asymmetric links.
 - qa_trust_txt.py - a python script that parses a trust.txt file and lists any errors it contains.
+- genjson.sh - a shell script that generates two JSON files suitable for import into the ArangoDB graph database for social network analysis
+- genlink.awk - an awk script that generates the link.json file for import into ArangoDB
+- genurl.awk - an awk script that generates the url.json file for import into ArangoDB
 
 Copyright (c) 2021 Brown Wolf Consulting LLC
 
