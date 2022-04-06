@@ -330,11 +330,13 @@ def process (srcpath, attribute, refpath, dirname, csvfile, redirfile, logfile, 
                 linenum += 1
                 #
                 # Remove leading and trailing white space, and remove any non-ASCII chacters (using encode to create bytes object and decode to
-                # convert bytes object back to str), remove any null characters "\00"
+                # convert bytes object back to str), remove any null characters "\00", or tab "\t", or spaces.
                 #
                 bytesline = line.strip().encode("ascii","ignore")
                 tmp1line = bytesline.decode("ascii","ignore")
                 tmpline = tmp1line.replace("\00","")
+                tmpline1 = tmpline.replace("\t","")
+                tmpline = tmpline1.replace(" ","")
                 #
                 # Skip this line if it is a comment line (begins with "#") or is an empty line
                 #
@@ -346,10 +348,13 @@ def process (srcpath, attribute, refpath, dirname, csvfile, redirfile, logfile, 
                 attr = tmpline.split("=",2)
                 if (len(attr) == 2) and (attr[1] != ""):
                     #
-                    # If a symmetric or assymetric attribute, then increment attribute count, normalize the referenced url, and write 
-                    # srcurl,attr,refurl to .csv file. Otherwise, log the invalid attribute error.
+                    # If a symmetric attribute then normalize the referenced url
                     #
-                    path = normalize(attr[1])
+                    if (attr[0] in symattr):
+                        path = normalize(attr[1])
+                    #
+                    # If either a symmentric or asymmetric attribute then increment attribute count and write srcurl,attr,refurl to .csv file. Otherwise, log the invalid attribute error.
+                    #
                     if (attr[0] in symattr) or (attr[0] in asymattr):
                         attrcount += 1
                         write_csv (http, refpath, attr[0], path, csvfile)
