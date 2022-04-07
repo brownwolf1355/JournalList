@@ -167,6 +167,12 @@ def write_error (http, srcpath, attr, refpath, error, errfile):
 def write_csv (http, srcpath, attr, refpath, csvfile):
     csvfile.write (http + srcpath + "," + attr + "," + http + refpath + "\n")
 #
+# write_csv_asym (http, srcpath, attr, refpath, csvfile) - Write the asymmetric attribute entry (don't prepend http) into the .csv file csvfile for the specified 
+# srcpath, attr, and refpath.
+#
+def write_csv_asym (http, srcpath, attr, refpath, csvfile):
+    csvfile.write (http + srcpath + "," + attr + "," + refpath + "\n")
+#
 # fetchtrust(srcpath,attr,refpath,dirname,filename,csvfile,logfile,errfile) - Fetch a trust.txt file and catch exceptions. If there are no exceptions
 # write the contents to the specified directory and filename. Check if the content is plaintext and return success=True. Otherwise, write
 # a blank line to the specified directory and filename and return success=False.
@@ -182,6 +188,8 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
     http = "https://"
     srcurl = http + srcpath + "trust.txt"
     refurl = http + refpath + "trust.txt"
+    path1 = ""
+    path2 = ""
     #
     # Log fetching the referenced url path
     #
@@ -223,10 +231,6 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
     #
     if success:
         #
-        # Log the status code
-        #
-        logfile.write ("HTTP Status Code: " + str(r.status_code) + "\n")
-        #
         # Write the trust.txt file and log it.
         #
         logfile.write ("Writing HTTP GET response to trust.txt file: " + dirname + "/" + filename + "\n")
@@ -254,6 +258,40 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
             #
             if not success:
                 write_error ("https://", srcpath, attr, refpath, "Content type: " + r.headers['Content-Type'], errfile)
+        #
+        # Log the status code
+        #
+        logfile.write ("HTTP Status Code: " + str(r.status_code) + "\n")
+        #
+        # Check if redirected to another domain by checking that normalized versions of the refurl and r.url do not match.
+        #
+        path1 = normalize (refurl)
+        path2 = normalize (r.url)
+        # logfile.write("path1 = " + path1 + " path2 = " + path2 + "\n")
+        if (path1 != path2):
+            #
+            # Log redirect and write to redirect file.
+            #
+            logfile.write (refurl + " redirects to " + r.url + "\n")
+            redirfile.write (refurl + "," + r.url + "\n")
+            #
+            # Check if redirect domain is a domain registrar, set success to False and set error message.
+            #
+            splitpath = path2.split("/",2)
+            domain = splitpath[0].lower()
+            if (domain in registrars):
+                success = False
+                error = "HTTP GET domain registration expired redirects to " + r.url
+            #
+            # Check if the fetch redirects to an existing file, if so log it has already been fetched and set success to False so that contents are not processed again.
+            #
+            rfilename = path2.replace("/", "-") + "trust.txt"
+            if os.path.isfile(dirname + "/" + rfilename):
+                #
+                # Log url as previously fetched
+                #
+                logfile.write (r.url + " previously fetched\n")
+                success = False
     else:
         #
         # Write a blank trust.txt file, log it, and write to error file.
@@ -265,32 +303,6 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
         trustfile.write("\n")
         trustfile.close()
     #
-    # If there was no exception, then check if their was a redirect to a different domain.
-    #
-    if not exception:
-        #
-        # Normalize refurl and the returned url
-        # 
-        path1 = normalize (refurl)
-        path2 = normalize (r.url)
-        #
-        # Check for a redirect to another domain.
-        #
-        if (path1[0:len(path1)-1] != path2[0:len(path1)-1]):
-            #
-            # Log redirect and write to redirect file.
-            #
-            logfile.write (refurl + " redirects to " + r.url + "\n")
-            redirfile.write (refurl + "," + r.url + "\n")
-            #
-            # If redirect domain is a domain registrar, set success to False and set error message.
-            #
-            splitpath = path2.split("/",2)
-            domain = splitpath[0].lower()
-            if (domain in registrars):
-                success = False
-                error = "HTTP GET domain registration expired redirects to " + r.url
-        #
     return success, r
 #
 # process(srcpath, attribute, refpath, dirname, csvfile, logfile, errfile) - Process the given refpath by retrieving the trust.txt 
@@ -348,16 +360,16 @@ def process (srcpath, attribute, refpath, dirname, csvfile, redirfile, logfile, 
                 attr = tmpline.split("=",2)
                 if (len(attr) == 2) and (attr[1] != ""):
                     #
-                    # If a symmetric attribute then normalize the referenced url
+                    # If a symmetric attribute then normalize the referenced url, otherwise it should remain unmodified.
                     #
                     if (attr[0] in symattr):
-                        path = normalize(attr[1])
-                    #
-                    # If either a symmentric or asymmetric attribute then increment attribute count and write srcurl,attr,refurl to .csv file. Otherwise, log the invalid attribute error.
-                    #
-                    if (attr[0] in symattr) or (attr[0] in asymattr):
                         attrcount += 1
+                        path = normalize(attr[1])
                         write_csv (http, refpath, attr[0], path, csvfile)
+                    elif (attr[0] in asymattr):
+                        attrcount += 1
+                        path = attr[1]
+                        write_csv_asym (http, refpath, attr[0], path, csvfile)
                     else:
                         write_error (http, refpath, attr[0], path, "Invalid attribute" + attr[0] + "at line " + str(linenum), errfile)
                         logfile.write ("Invalid attribute" + attr[0] + "at line " + str(linenum) + "\n")
@@ -372,7 +384,7 @@ def process (srcpath, attribute, refpath, dirname, csvfile, redirfile, logfile, 
         else:
             # Set attrcount to -1 (not zero), prevents no attributes error from also being logged
             #
-            attrcount = -1
+            attrcount = -1        
         #
         # If no attributes were found, log a no attributes error
         #
@@ -388,7 +400,6 @@ def process (srcpath, attribute, refpath, dirname, csvfile, redirfile, logfile, 
         # Log url as previously fetched
         #
         logfile.write ("END: " + refurl + " previously fetched\n")
-        #
     return
 #
 # Main program
