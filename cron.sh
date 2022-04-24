@@ -10,6 +10,7 @@
 # License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
 #
 #-------------------------------------
+date
 #
 # Set DIRNAME
 #
@@ -25,6 +26,14 @@ fi
 if [ ! -d $DIRNAME ]
 then
     python3.10 webcrawler.py
+    #
+    # If a resources.csv file exists (download from https://well-known.dev/?q=resource%3Atrust.txt+is_base_domain%3Atrue#results)
+    # copy it to the Webcrawl directory to preserve the results for that day.
+    #
+    if [ -f resources.csv]
+    then
+        cp resources.csv $DIRNAME/$DIRNAME-resources.csv
+    fi
 fi
 #
 # Process the results of the webcrawler to generate the symmetric links, association, publisher, and vendor .csv files.

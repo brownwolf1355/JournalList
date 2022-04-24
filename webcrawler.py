@@ -187,7 +187,7 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
     #
     http = "https://"
     srcurl = http + srcpath + "trust.txt"
-    refurl = http + refpath + "trust.txt"
+    refurl = http + refpath + "trust.txt" 
     path1 = ""
     path2 = ""
     #
@@ -195,37 +195,37 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
     #
     logfile.write("Fetching: " + refurl + " referenced from " + srcurl + " with attribute \"" + attr + "\"\n")
     #
-    # Try using "http" first.
+    # Try using "http" and dropping the "www."
     #
     http = "http://"
-    refurl = http + refpath + "trust.txt"
+    refurl = http + refpath[4:len(refpath)] + "trust.txt"
     logfile.write("Trying: " + refurl + "\n")
     #
     success, exception, r, error = fetchurl (refurl)
-    if exception:
+    if exception or r.status_code == 404:
         #
-        # Try using "http" and dropping the "www."
+        # Try using "http", dropping the "www.", and adding "/.well-known"
         #
-        refurl = http + refpath[4:len(refpath)] + "trust.txt"
+        refurl = http + refpath[4:len(refpath)] + ".well-known/trust.txt"
         logfile.write("Trying: " + refurl + "\n")
         success, exception, r, error = fetchurl (refurl)
         #
-        if exception:
+        #if exception:
             #
             # Try using "https"
             #
-            http = "https://"
-            refurl = http + refpath + "trust.txt"
-            logfile.write("Trying: " + refurl + "\n")
-            success, exception, r, error = fetchurl (refurl)
+        #    http = "https://"
+        #    refurl = http + refpath + "trust.txt"
+        #    logfile.write("Trying: " + refurl + "\n")
+        #    success, exception, r, error = fetchurl (refurl)
             #
-            if exception:
+        #    if exception:
                 #
                 # Try using "https" and dropping the "www."
                 #
-                refurl = http + refpath[4:len(refpath)] + "trust.txt"
-                logfile.write("Trying: " + refurl + "\n")
-                success, exception, r, error = fetchurl (refurl)  
+        #        refurl = http + refpath[4:len(refpath)] + "trust.txt"
+        #        logfile.write("Trying: " + refurl + "\n")
+        #        success, exception, r, error = fetchurl (refurl)
     #
     # Fall through to here after trying different url forms
     #
@@ -461,6 +461,27 @@ if (not os.path.isdir(dirname)):
     # Process the root url
     #
     retcount = process(path, "self", path, dirname, csvfile, redirfile, logfile, errfile)
+    #
+    # If well-known.dev resource list obtained from (https://well-known.dev/?q=resource%3Atrust.txt+is_base_domain%3Atrue) exists process each entry.
+    # Each entry is a tuple of [rank, domain, resource, status, scan_dt, simhash]
+    #
+    resname = "resources.csv"
+    if os.path.isfile(resname):
+        #
+        logfile.write("BEGIN: processing well-known.dev resource list\n")
+        resfile = open(resname,"r")
+        #
+        # Read the lines of the resource file
+        #
+        lines = resfile.readlines()
+        #
+        # Process the domain for each line.
+        #
+        for line in lines:
+            tuple = line.split(",",5)
+            if tuple[0] != "rank":
+                path = normalize(tuple[1])
+                retcount = process(path, "self", path, dirname, csvfile, redirfile, logfile, errfile)
     #
     # Log ending time.
     #
