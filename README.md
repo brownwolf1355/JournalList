@@ -16,6 +16,7 @@ It contains the following files:
 - genjson.sh - a shell script that generates two JSON files suitable for import into the ArangoDB graph database for social network analysis
 - genlink.awk - an awk script that generates the link.json file for import into ArangoDB
 - genurl.awk - an awk script that generates the url.json file for import into ArangoDB
+- scrapesite.py - a python script that scrapes websites to scan one or more sites and find all social, contact, and vendor links, as well as control links and copyright.
 
 Copyright (c) 2021 Brown Wolf Consulting LLC
 
