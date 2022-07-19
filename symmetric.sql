@@ -4,6 +4,13 @@
  * Copyright (c) 2021 Brown Wolf Consulting LLC
  * License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
  *
+ */
+/*
+ * Delete known errors trust_txt table
+ *
+ */
+delete from trust_txt where exists (select * from known_err where trust_txt.srcurl = known_err.srcurl and trust_txt.attr = known_err.attr and trust_txt.refurl = known_err.refurl);
+/*
  * Generate intermediate tables
  *
  */
@@ -69,11 +76,12 @@ insert into controlled_list (srcurl) select distinct srcurl from controlledby_li
 insert into control_dups (srcurl,attr,refurl) select * from control_list where refurl in (select refurl from control_list group by refurl having count (refurl) > 1) order by refurl;
 insert into controlledby_dups (srcurl,attr,refurl) select * from controlledby_list where srcurl in (select srcurl from controlledby_list group by srcurl having count (srcurl) > 1) order by srcurl;
 /*
- * Generate the complete membership set (include both member and belongto attributes)
+ * Generate the list of JournalList members with "control=" entries, the list of urls with trust.txt files, and the list of JournalList members with "control=" with missing trust.txt files with corresponding "controlledby=" entries. 
  *
  */
-insert into membership_total (srcurl,refurl) select srcurl,refurl from member_list;
-insert into membership_total (srcurl,refurl) select refurl,srcurl from belongto_list;
+insert into jlctrl_list (srcurl,attr,refurl) select control_list.srcurl, control_list.attr, control_list.refurl from member_list join control_list where member_list.srcurl = "https://www.journallist.net/" and control_list.srcurl = member_list.refurl and control_list.srcurl != control_list.refurl;
+insert into trust_files (srcurl) select distinct srcurl from trust_txt;
+insert into missctrlby_list(srcurl,attr,refurl) select * from jlctrl_list where refurl not in trust_files;
 /*
  * Generate the statistics for associations, publishers, vendors, JournalList members, symmetric and asymmetric relationships.
  *

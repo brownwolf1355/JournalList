@@ -13,6 +13,9 @@ CREATE TABLE control_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 CREATE TABLE controlledby_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 CREATE TABLE vendor_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 CREATE TABLE customer_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
+CREATE TABLE jlctrl_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
+CREATE TABLE trust_files ("srcurl" TEXT);
+CREATE TABLE missctrlby_list ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 /*
  * Create output tables: symmetric links, list of associations, publishers, vendors, and controlled urls, and statistics.
  *
@@ -25,7 +28,6 @@ CREATE TABLE vendors_list ("srcurl" TEXT);
 CREATE TABLE controlled_list ("srcurl" TEXT);
 CREATE TABLE control_dups ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
 CREATE TABLE controlledby_dups ("srcurl" TEXT, "attr" TEXT, "refurl" TEXT);
-CREATE TABLE membership_total ("srcurl" TEXT, "refurl" TEXT);
 CREATE TABLE temp_list ("srcurl" TEXT);
 create table stats ("title" TEXT, "count" INTEGER);
 /*
@@ -34,3 +36,8 @@ create table stats ("title" TEXT, "count" INTEGER);
  */
 .mode csv
 .headers on
+/*
+ * Import known errors
+ *
+ */
+.import known_err.csv known_err
