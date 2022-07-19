@@ -2,15 +2,20 @@
 #
 # JournalList.net website scraper to scan all sites in a list and find all social, contact, and vendor links.
 #
-# Name - sitescrape.py [input.csv output.csv | name website]
-# Synopsis - sitescrape.py [input.csv output.csv | name website]
-#   input.csv - a .csv file containing a list of sites to scan [Name, Website]
-#   output.csv - the output .csv file containing [Website, Contact, Facebook, Instagram, Twitter, Youtube, LinkedIn, Vendor, Copyright, Control]
-#   name - the name of the publication (same as Name in input.csv)
-#   website - the URL of the website (same as Website in input.csv)
+# usage: sitescrape.py [-h] [-v] [-s] [-d DIRNAME] [-w WEBCRAWL] url_or_filename
 #
-# Summary - This python script outputs a .csv list with [Website, Contact, Facebook, Instagram, Twitter, Youtube, LinkedIn, Vendor, Copyright, Control] 
-#   if arguments are: input.csv  output.csv, otherwise it generates a trust.txt for the named website.
+# Scrapes websites to discover: 'name', 'contact', 'social', and 'copyright' and writes trust.txt file. Optionally, checks webcrawler ouptut for additional 'belongto' entries.
+#
+# positional arguments:
+#   url_or_filename       url to scrape or name of a .csv file containing a list of urls to scape
+#
+# options:
+#   -h, --help            show this help message and exit
+#   -v, --verbose         increase output verbosity
+#   -s, --save            save HTML from the website
+#   -j, -J                force trust.txt files to include "https://www.journallist.net/"
+#   -d DIRNAME            name of directory to write output, defualt to current directory
+#   -w WEBCRAWL           name of webcrawler output directory to check for belongto entries
 #
 # Copyright (c) 2021 Brown Wolf Consulting LLC
 # License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
@@ -18,9 +23,210 @@
 #--------------------------------------------------------------------------------------------------
 import sys
 import os
-import time
 import requests
 import re
+import html
+from bs4 import BeautifulSoup
+import argparse
+from html.parser import HTMLParser
+from urllib.parse import unquote
+# 
+# Define global variables
+#
+# Define set of error text to check in returned HTML text
+#
+errors = [
+    "Page Not Found",
+    "Site Not Found",
+    "Access denied",
+    "Server Error",
+    "Private Site",
+    "Under Construction",
+    "OH SNAP!",
+    "ErrorPageController"
+    ]
+#
+# Define list of domain registrars to check for expired domains
+#
+registrars = [
+    "www.hugedomains.com",
+    "www.domain.com",
+    "www.godaddy.com",
+    "www.namecheap.com",
+    "www.name.com",
+    "www.enom.com",
+    "www.dynadot.com",
+    "www.namesilo.com",
+    "www.123-reg.co.uk",
+    "www.bluehost.com"
+    ]
+#
+# Define list of known vendors, add to this list to add new vendors
+#
+vendors = [
+    "bulletlink.com",
+    "creativecirclemedia.com",
+    "dirxion.com",
+    "going1up.com",
+    "our-hometown.com",
+    "townnews.com",
+    "887media.com",
+    "crowct.com",
+    "etypeservices.com",
+    "etypeservices.net",
+    "surfnewmedia.com",
+    "websitesfornewspapers.com",
+    "xyzscripts.com",
+    "publishwithfoundation.com",
+    "socastdigital.com",
+    "creativecirclemedia.com",
+    "disqus.com",
+    "locablepublishernetwork.com",
+    "metropublisher.com",
+    "intertechmedia.com",
+    "tecnavia.com"
+    ]
+#
+# Define media conglomerates that publish multiple brands on different domains, add to this list to add new media conglomerates
+#
+chains = {
+    "Advance Local Media":"https://www.advancelocal.com/",
+    "Allen Media Broadcasting":"https://allenmediabroadcasting.com/",
+    "Alpha Media":"https://www.alphamediausa.com/",
+    "C&S Media":"https://csmediatexas.com/",
+    "CherryRoad Media":"https://cherryroad-media.com/",
+    "Colorado Community Media":"https://coloradocommunitymedia.com/",
+    "Cumulus Media":"https://www.cumulusmedia.com/",
+    "Ellington":"http://www.connectionnewspapers.com/",
+    "Gannett":"https://www.gannett.com/",
+    "Gray Television":"https://www.gray.tv/",
+    "Hearst":"https://www.hearst.com/",
+    "Independent Newsmedia":"https://newszap.com/",
+    "Lee Enterprises":"https://lee.net/",
+    "MediaNews Group":"https://www.medianewsgroup.com/",
+    "Mountain Media":"https://mountainmedianews.com/",
+    "News Media Corporation":"http://www.newsmediacorporation.com/",
+    "Outdoor Sportsman Group":"https://www.outdoorsg.com/",
+    "Penske Media Corporation":"https://pmc.com/",
+    "Postmedia Network":"https://www.postmedia.com/",
+    "Scripps Media":"https://scripps.com/",
+    "Swift Communications":"https://www.swiftcom.com/",
+    "Trusted Media Brands":"https://www.trustedmediabrands.com/",
+    "Vox Media":"https://corp.voxmedia.com/"
+    }
+#
+# Define list of social networks, add to this list to add new social networks
+#
+socials = [
+    "facebook.com",
+    "instagram.com",
+    "twitter.com",
+    "youtube.com",
+    "linkedin.com",
+    "pinterest.com"
+    ]
+#
+# Define url exceptions, primarily to catch social network references that aren't the actual handle for the organization
+#
+exceptions = [
+    "//staticxx.facebook.com",
+    "//staticxx.facebook.com/",
+    "http://facebook.com",
+    "https://facebook.com",
+    "http://www.facebook.com",
+    "https://www.facebook.com",
+    "//facebook.com",
+    "//www.facebook.com",
+    "//graph.facebook.com",
+    "facebook.com/profile.ph",
+    "http://instagram.com",
+    "https://instagram.com",
+    "http://www.instagram.com",
+    "https://www.instagram.com",
+    "//instagram.com",
+    "//platform.instagram.com",
+    "http://twitter.com",
+    "https://twitter.com",
+    "http://www.twitter.com",
+    "https://www.twitter.com",
+    "//twitter.com",
+    "//platform.twitter.com",
+    "//syndication.twitter.com",
+    "//youtube.com",
+    "http://linkedin.com",
+    "https://linkedin.com",
+    "http://www.linkedin.com",
+    "https://www.linkedin.com",
+    "//linkedin.com",
+    "//platform.linkedin.com",
+    "http://pinterest.com",
+    "https://pinterest.com",
+    "http://www.pinterest.com",
+    "https://www.pinterest.com",
+    "https://www.pinterest.com/",
+    "https://www.pinterest.com/pin/create/button/",
+    "//pinterest.com",
+    "//assets.pinterest.com",
+    "//api.pinterest.com"
+    ]
+#
+# Define embedded exceptions
+#
+embedded = [
+    "/wp-content",
+    "share",
+    "/intent",
+    "appId",
+    "/pin/create/",
+    "/media/set",
+    "youtube.com/watch",
+    "/favicon.",
+    "//static.xx.fbcdn.net/",
+    "squarespace.com/",
+    "BOOMR.url",
+    "-contact-",
+    "-about-",
+    "abouts",
+    "-connect",
+    "contact-form"
+    ]
+#
+# Define home page variants (ignoring case) for removal from site name
+#
+homepage = ["home page [-|\|]", "home page$", "homepage [-|\|]", "homepage$", "home [-|\|]", "[-|\|] home$"]
+#
+# Define various forms of "contact" in contact urls
+#
+# contactlist = ["[^-]contact-us[^-]", "[^-]about-us[^-]", "[^-]contact[^-]", "[^-]about[^-]", "[^-]connect[^-]", "[^-]kontakt[^-]", "mailto:"]
+contactlist = ["contact-us", "about-us", "contact", "about", "connect", "kontakt", "mailto:"]
+#
+# Set verbose and save modes to False
+#
+verbose = False
+save = False
+redo = False
+#
+# Declare global href and datalist to hold return values from HTML parser handler.
+#
+global href
+datalist = []
+#
+# Define HTMLparser handlers
+#
+class MyHTMLParser(HTMLParser):
+    #
+    def handle_starttag(self, tag, attrs):
+        global href
+        if tag == "a":
+            for attr in attrs:
+                if attr[0] == "href" and attr[1] != "":
+                    href = attr[1]
+                    if verbose:
+                        print ("href = ", href)
+    #
+    def handle_data(self, data):
+        global datalist
+        datalist.append(data)
 #
 # fetchurl(url) - Fetches the specified url, catches exceptions, and if successful checks if the content is plaintext. 
 # Returns success (True or False), exception (True or False), the request response, and error string.
@@ -32,6 +238,9 @@ import re
 #    success = False, exception = True  - connection error occured trying to connect to site
 #
 def fetchurl(url):
+    #
+    if (verbose):
+        print ("fetchurl:url =", url)
     #
     # Set User Agent to "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:93.0) Gecko/20100101 Firefox/93.0" to avoid 403 errors on some websites.
     #
@@ -61,25 +270,23 @@ def fetchurl(url):
         success = False
         exception = True
     #
+    if (verbose):
+        print ("fetcurl:success = ", success, "exception = ", exception, "error = ", error)
+    #
     # Return results
     #
     return success, exception, r, error
 #
-# write_csv (website, contact, facebook, instagram, twitter, youtube, linkedin, vendor, copyright, control, csvfile) - Write the entry into the .csv file csvfile.
+# write_trust_txt (website, contact, links, vendor, copyright, control, csvfile) - Write the trust.txt file.
 #
-def write_csv (name, website, contact, facebook, instagram, twitter, youtube, linkedin, pinterest, vendor, copyright, control, csvfile):
-    csvfile.write (name + "," + website + "," + contact + "," + facebook + "," + instagram + "," + twitter + "," + youtube + "," + linkedin + "," + pinterest + "," + vendor + "," + copyright + "," + control + "\n")
-#
-# write_trust_txt (website, contact, facebook, instagram, twitter, youtube, linkedin, vendor, copyright, control, csvfile) - Write the entry into the .csv file csvfile.
-#
-def write_trust_txt (name, website, contact, facebook, instagram, twitter, youtube, linkedin, pinterest, vendor, copyright, control, output):
+def write_trust_txt (name, website, contact, links, vendor, copyright, control, belongtos, output):
     #
     # Define trust.txt file header and commment text
     #
     header = "# NAME trust.txt file\n#\n# For more information on trust.txt see:\n# 1. https://journallist.net - Home of the trust.txt specification\n# 2. https://datatracker.ietf.org/doc/html/rfc8615 - IETF RFC 8615 - Well-Known Uniform Resource Identifiers (URIs)\n# 3. https://www.iana.org/assignments/well-known-uris/well-known-uris.xhtml - IANA's list of registered Well-Known URIs\n#\n"
-    contolledby = "# NAME s controlled by the following organization\n#\n"
-    belongto = "#\n# NAME belongs to the following organizations\n#\nbelongto=https://journallist.net\n"
-    social = "#\n# NAME social networks\n#\n"
+    contolledby = "# NAME is controlled by the following organization\n#\n"
+    belongto = "# NAME belongs to the following organizations\n#\n"
+    social = "# NAME social networks\n#\n"
     vndr = "#\n# NAME vendors\n#\n"
     cntct = "#\n# NAME contact info\n#\n"
     #
@@ -91,34 +298,26 @@ def write_trust_txt (name, website, contact, facebook, instagram, twitter, youtu
     #
     if control != "":
         output.write (contolledby.replace("NAME",name))
-        output.write ("controlledby=" + control + "\n")
+        output.write ("controlledby=" + control + "\n#\n")
     #
     # Write "belongto="" entry
     #
     output.write (belongto.replace("NAME",name))
+    if len(belongtos) > 0:
+        for blongto in belongtos:
+            output.write ("belongto=" + blongto + "\n")
+    else:
+        output.write ("# belongto=  \n")
+    output.write("#\n")
     #
     # Write "social=" entries
     #
     output.write (social.replace("NAME",name))
     nosocial = True
-    if facebook != "":
-        output.write ("social=" + facebook + "\n")
-        nosocial = False
-    if instagram != "":
-        output.write ("social=" + instagram + "\n")
-        nosocial = False
-    if twitter != "":
-        output.write ("social=" + twitter + "\n")
-        nosocial = False
-    if youtube != "":
-        output.write ("social=" + youtube + "\n")
-        nosocial = False
-    if linkedin != "":
-        output.write ("social=" + linkedin + "\n")
-        nosocial = False
-    if pinterest != "":
-        output.write ("social=" + pinterest + "\n")
-        nosocial = False
+    for link in links:
+        if link != "":
+            output.write ("social=" + link + "\n")
+            nosocial = False
     if nosocial:
         output.write ("# social=\n")
     #
@@ -143,76 +342,119 @@ def write_trust_txt (name, website, contact, facebook, instagram, twitter, youtu
     if copyright != "":
         output.write ("#\n# " + copyright + "\n")
 #
-# findurl (str,text) - Find "href=" followed by a URL containing str in HTML text, return url or "" if none found.
+# findurl (string,soup) - Find "href=" followed by a URL containing str in HTML soup, return url or "" if none found.
 #
-def findurl(str,text):
+def findurl(string,soup):
+    global href
     #
-    # Define exceptions
+    # Find all occurances of "href=" followed by a url containing string
     #
-    exceptions = ["//staticxx.facebook.com","//staticxx.facebook.com/","http://facebook.com","https://facebook.com","//facebook.com","http://instagram.com","https://instagram.com","//instagram.com","http://twitter.com","https://twitter.com","//twitter.com","http://linkedin.com","https://linkedin.com","//linkedin.com","http://pinterest.com","https://pinterest.com","//pinterest.com"]
+    tags = soup.find_all(href=re.compile(string))
     #
-    # Find all occurances of "href=" followed by str until closing ">"
+    if (verbose):
+        print ("findurl:string = ", string, "tags =", tags)
     #
-    # print ("str =", str)
-    list = re.findall("href=[^ ]*" + str + "[^>]*>",text)
-    # print ("list =", list)
-    if len(list) !=0:
+    href = ""
+    if len(tags) > 0:
         #
         # Check each occurance for a valid match
         #
-        for url in list:
+        for tag in tags:
             #
-            # Remove single quotes, double quotes, and backslash characters
+            # Parse HTML for this tag and get url from href
             #
-            url = url.replace("'","")
-            url = url.replace("\"","")
-            url = url.replace("\\","")
+            url = html.unescape(str(tag))
+            parser = MyHTMLParser()
+            parser.feed(url)
+            url = href
             #
-            # Remove leading "href="
+            if url.startswith("/click?url="):
+                url = url[11:len(url)]
             #
-            url = url[5:len(url)]
+            # Check for exception match or if the string is not in the found url, if so check next match
             #
-            # Remove text after an embedded " " and/or embedded "?" and/or embedded ">" and/or embedded "\n"
-            #
-            index = url.find(" ")
-            if (index > 0):
-                url = url[0:index]
-            index = url.find("?")
-            if (index > 0):
-                url = url[0:index]
-            index = url.find(">")
-            if (index > 0):
-                url = url[0:index]
-            index = url.find("\n")
-            if (index > 0):
-                url = url[0:index]
-            # print ("url = ", url)
-            #
-            # Check if url is "http:" or "https:" or str only, check next match
-            #
-            if (url == "https:") or (url == str):
-                url = ""
-                break
-            #
-            # Check for Word Press content ("wp-content"), share content ("share"), intent content ("/intent"), or ("appId") in url, if not found return url, otherwise check next match
-            #
-            index1 = url.find("/wp-content")
-            index2 = url.find("share")
-            index3 = url.find("/intent")
-            index4 = url.find("appId")
-            # print ("index1 = ", index1, "index2 = ", index2, "index3 = ", index3)
-            if index1 < 0 and index2 < 0 and index3 < 0 and index4 < 0:
-                break
+            if string.startswith("[^-]") and string.endswith("[^-]"):
+                teststr = string[4:len(string)-4]
             else:
+                teststr = string
+            #
+            if url in exceptions or teststr not in url:
                 url = ""
-        #
-        # Check for exceptions
-        #
-        if url in exceptions:
-            url = ""
+            else:
+                #
+                # Check for embedded exceptions, if not found return url, otherwise check next match
+                #
+                found = False
+                for excptn in embedded:
+                    if url.find(excptn) > 0:
+                        found = True
+                if not found:
+                    break
+                else:
+                    url = ""
     else:
-        url = ""  
+        url = ""
+    #
+    # Do final cleanup
+    #
+    if url != "":
+        #
+        # Strip after "?" or "#"
+        #
+        index = url.find("?")
+        if index > 0:
+            url = url[0:index]
+        index = url.find("#")
+        if index > 0:
+            url = url[0:index]
+        #
+        # Prepend "https:" to url if missing
+        #
+        if url.startswith("//"):
+            url = "https:" + url
+        #
+        # Don't unquote urls with "%2C" (commas), otherwise unquote them
+        #
+        if url.find("%2C") < 0:
+            url = unquote(url)
+    #
+    if (verbose):
+        print("findurl:url = ", url)
+    #
     return (url)
+#
+# findcontact(soup) - Find contact URL in HTML soup, return url or "" if none found.
+#
+def findcontact(rurl,soup):
+    #
+    # Find contact link
+    #
+    for cntct in contactlist:
+        contact = findurl(cntct,soup)
+        if contact != "":
+            #
+            # If an absolute url prepend domain url
+            #  
+            if contact.startswith("/"):
+                index1 = rurl.find("://") + 3
+                index2 = rurl[index1:len(rurl)].find("/")
+                baseurl = rurl[0:index1+index2]
+                if baseurl.endswith("/"):
+                    contact = baseurl + contact[1:len(contact)]
+                else:
+                    contact = baseurl + contact
+            elif contact.startswith("./"):
+                if url.endswith("/"):
+                    contact = rurl + contact[2:len(contact)]
+                else:
+                    contact = rurl + contact[1:len(contact)]
+            elif contact.startswith("#") or contact.startswith("a") or contact.startswith("c"):
+                if url.endswith("/"):
+                    contact = rurl + contact
+                else:
+                    contact = rurl + "/" + contact
+            break
+    return(contact)
 #
 # findtel (text) - Find telephone number in HTML text, return tel:<phone number>
 #
@@ -229,143 +471,212 @@ def findtel(text):
             phone = "tel:" + list[0].strip()
         else:
             phone = ""
+    #
+    if (verbose):
+        print("findtel:phone = ", phone)
+    #
     return(phone)
 #
 # findcopyright (text) - Find copyright text in HTML text, return copyright string
+# 
+# Obsserved Copyright forms:
+# 1.	"copyright [0-9]{4}"
+# 2.    "copyright © [0-9]{4}"
+# 3.    "copyright ©[0-9]{4}"
+# 4.    "copyright ©"
+# 4.    "copyright (c) [0-9]{4}"
+# 5.    "© [0-9]{4}"
+# 6.    "©[0-9]{4}"
+# 7.    "© copyright"
+# 8.    "©"
 #
 def findcopyright(text):
-    # print (text)
     #
     # Define various forms of "copyright"
     #
-    copyrightlist = ["©", "\&copy;","Copyright", "\(c\)"]
-    matchstr = "[a-z|A-Z|0-9|,|\.|\-|&|;|#| |\n]*"
+    copyrightlist = ["copyright [0-9]{4}", "copyright © [0-9]{4}", "copyright ©[0-9]{4}", "copyright ©", "copyright (c) [0-9]{4}", "© [0-9]{4}", "©[0-9]{4}", "© copyright", "©"]
     #
-    # Find all occurances of copyright in its various forms
+    # Initialize variables
     #
-    for str in copyrightlist:
-        # print ("str = ", str, "len(str) = ", len(str))
-        list = re.findall(str + matchstr,text)
-        # print ("list = ", list)
-        if len(list) !=0:
-            temp = list[0].replace("\n","")
-            if (str == "\(c\)"):
-                index = 3
-            elif (str == "\&copy;"):
-                index = 6
-            else:
-                index = len(str)
-            copyright = temp[index:len(temp)].strip("\n")
-            break
-        else:
-            list = re.findall(matchstr + str,text)
-            if len(list) !=0:
-                temp = list[0].strip()
-                if (str == "\(c\)"):
-                    index = 3
-                elif (str == "\&copy;"):
-                    index = 6
-                else:
-                    index = len(str)
-                copyright = temp[0:len(temp)-len(str)].strip("\n")
-                break
-            copyright = ""
+    copyright = ""
     #
-    # Replace "&amp;" with "&", "&#169;" with "©", and "&nbsp;" with " ", and "&quot;" with "\""
+    # Remove newlines, some unnecessary characters (&not; &dagger;), comments, scripts, and embedded links
     #
-    copyright = copyright.replace("&amp;","&")
-    copyright = copyright.replace("&#169;","©")
-    copyright = copyright.replace("&nbsp;"," ")
-    copyright = copyright.replace("&quot;","\"")
-    # 
-    return(copyright)
-    # 
-    return(copyright)
-#
-# findcontact (text) - Find contact URL in HTML text, return URL string
-#
-def findcontact (text):
+    text = re.sub(re.compile("[¬|†|\n|\r|]")," ",text)
+    text = re.sub(re.compile("<!--[^-]*-->"),"",text)
+    text = re.sub(re.compile("/\* [^\*]*\*/"),"",text)
+    text = re.sub(re.compile("<script>[^>]*</script>"),"",text)
+    text = re.sub(re.compile("<a [^>]*>"),"",text)
     #
-    # Define various forms of "contact"
+    # Step through copyright list to check its various forms
     #
-    contactlist = ["contact-us", "Contact-Us", "ContactUs", "contactus", "Contact us", "contact us", "contact_us", "Contact", "contact", "CONTACT", "About Us", "about-us", "about", "mailto:"]
-    #
-    # Find contact link (try various forms in contactlist, then search for a phone number)
-    #
-    for str in contactlist:
-        # print ("str =", str)
-        contact = findurl (str, text)
-        # print ("contact = ", contact)
-        if (contact != ""):
-            break
-    if (contact == ""):
-        contact = findtel (text)
-    contact = contact.strip("'").replace(",", " ")
-    #
-    if (contact != ""):
+    for string in copyrightlist:
         #
-        # If a relative url prepend base url
-        #  
-        if contact.startswith("/"):
-            if url.endswith("/"):
-                contact = url + contact[1:len(contact)]
+        if (verbose):
+            print ("findcopyright:string = ", string)
+        #
+        list = re.findall(re.compile(">[^>]*" + string + "[^<]*<",re.IGNORECASE),text)
+        #
+        if (verbose):
+            print ("findcopyright:list = ", list)
+        #
+        for copyright in list:
+            #
+            # If match has an "http" link or "-copyright" or "SiteCatalyst", check next match
+            #
+            if copyright.find("http") < 0 and copyright.find("-copyright") < 0 and copyright.find("SiteCatalyst") < 0:
+                #
+                # Check for "<meta name=\"copyright\" content=" and remove it
+                #
+                if copyright.find("<meta name=\"copyright\" content=") >= 0:
+                    copyright = copyright.replace("<meta name=\"copyright\" content=","")
+                    copyright = copyright.replace("/>","")
+                    copyright = copyright.replace("\"","")
+                #
+                # Check for "<meta name=\"rights\" content=" and remove it
+                #
+                if copyright.find("<meta name=\"rights\" content=") >= 0:
+                    copyright = copyright.replace("<meta name=\"rights\" content=","")
+                    copyright = copyright.replace("/>","")
+                    copyright = copyright.replace("\"","")
+                #
+                # Remove leading ">" and trailing "<", strip extraneous spaces
+                #
+                copyright = copyright[1:len(copyright)-1]
+                copyright = copyright.strip()
+                copyright = re.sub("\s+"," ",copyright)
+                #
+                break
             else:
-                contact = url + contact
-        if contact.startswith("./"):
-            if url.endswith("/"):
-                contact = url + contact[2:len(contact)]
-            else:
-                contact = url + contact[1:len(contact)]
-        if not contact.startswith("http") and not contact.startswith("mailto") and not contact.startswith("tel:"):
-            contact = url + contact
-    return(contact)
+                copyright = ""
+        if copyright != "":
+            break
+    #
+    if (verbose):
+        print ("findcopyright:copyright =", copyright)
+    # 
+    return(copyright)
 #
-# process(html) - Process the given html to find all the social, contact, and vendor links.
+# trustfilename(url) - generate a trust.txt filename from url
 #
-def process (url):
+def trustfilename(url,dirname):
     #
-    # Define set of error text to check in returned HTML text
+    # Create output trust.txt filename from url
     #
-    errors = ["Page Not Found", "Site Not Found", "Access denied", "Server Error"]
+    index = url.find("://")
+    domain = url[index+3:len(url)]
+    filename = domain.replace("/","-")
+    if (filename.endswith("-")):
+        filename = dirname + "/" + filename + "trust.txt"
+    else:
+        filename = dirname + "/" + filename + "-trust.txt"
+    return (filename)
+#
+# htmlfilenam(url) - generate an filename from url
+#
+def htmlfilename(url,dirname):
     #
-    # Define list of domain registrars to check for expired domains
+    # Create output HTML filename from url
     #
-    registrars = ["www.hugedomains.com", "www.domain.com", "www.godaddy.com", "www.namecheap.com", "www.name.com", "www.enom.com", "www.dynadot.com", "www.namesilo.com", "www.123-reg.co.uk", "www.bluehost.com"]
+    index = url.find("://")
+    domain = url[index+3:len(url)]
+    filename = domain.replace("/","-")
+    if (filename.endswith("-")):
+        filename = dirname + "/" + filename[0:len(filename)-1] + ".html"
+    else:
+        filename = dirname + "/" + filename + ".html"
+    return (filename)
+#
+# readurl(url) - Reads the content of the specified url
+# 
+# Returns success (True or False), exception (True or False), the request response, and error string.
+# 
+# Valid success & exception states (cannot have both success = True and exception = True):
+#
+#    success = True,  exception = False - trust.txt file found
+#    success = False, exception = True  - connection error occured trying to connect to site
+#
+def readurl(url,dirname):
     #
-    # Define list of known vendors
+    if (verbose):
+        print ("readurl:url =", url, "dirname = ", dirname)
+    # 
+    # Get HTML filename
     #
-    vendors = ["bulletlink.com", "creativecirclemedia.com", "dirxion.com", "going1up.com", "our-hometown.com", "townnews.com", "887media.com", "authentictexan.com", "crowct.com", 
-"etypeservices.com", "etypeservices.net", "surfnewmedia.com", "websitesfornewspapers.com", "xyzscripts.com", "publishwithfoundation.com", "socastdigital.com",
-"creativecirclemedia.com", "disqus.com", "locablepublishernetwork.com", "metropublisher.com"]
+    filename = htmlfilename(url,dirname)
     #
-    # Define media conglomerates that publish multiple brands on different domains
+    if os.path.isfile(filename):
+        success = True
+        error = ""
+        #
+        # Open HTML file and read contents
+        #
+        file = open(filename,"r")
+        text = file.read()
+        file.close()
+    else:
+        success = False
+        error = "file: ", filename, "not found"
+        text = ""
     #
-    chains = {
-        "C&S Media":"https://csmediatexas.com/",
-        "CherryRoad Media":"https://cherryroad-media.com/",
-        "Ellington":"http://www.connectionnewspapers.com/",
-        "Gannett":"https://www.gannett.com/",
-        "Hearst":"https://www.hearst.com/",
-        "Lee Enterprises":"https://lee.net/",
-        "Mountain Media":"https://mountainmedianews.com/"
-        }
+    # Return results
     #
-    # Fetch home page
+    return success, text, error  
+#
+# process(url) - Process the given url to find all the social, contact, and vendor links
+#
+def process (url,dirname):
     #
-    success, exception, r, error = fetchurl(url)
+    if (verbose):
+        print ("process:url = ", url)
+    #
+    rurl = url
+    text = ""
+    name = ""
+    contact = ""
+    links = []
+    vendor = ""
+    copyright = ""
+    control = ""
+    #
+    # If redo, read contents of HTML file previously saved, Fetch home page
+    #
+    if redo:
+        success, text, error = readurl(url,dirname)
+        exception = False
+    else:
+        success, exception, r, error = fetchurl(url)
+        if success:
+            rurl = r.url
+            text = r.text
     #
     # If successful, find links
     #
-    if (success):
+    if success:
+        #
+        # Save file if -s option used
+        #
+        if save:
+            #
+            # If save HTML, create output filename from url, prepend dirname, and write response
+            #
+            filename = htmlfilename(rurl,dirname)
+            file = open(filename,"w")
+            file.write(r.text)
+            file.close()
+        #
         skip = False
-        rurl = r.url
+        #
+        # Remove text after "?" or "#" from returned url
+        #
+        index = rurl.find("?")
+        if index > 0:
+            rurl = rurl[0:index-1]
+        index = rurl.find("#")
+        if index > 0:
+            rurl = rurl[0:index-1]
+        name = ""
         contact = ""
-        facebook = ""
-        instagram = ""
-        twitter = ""
-        youtube = ""
-        linkedin = ""
-        pinterest = ""
         vendor = ""
         copyright = ""
         control = ""
@@ -373,7 +684,7 @@ def process (url):
         # Check for errors
         #
         for error in errors:
-            if (r.text.find(error) >= 0):
+            if (text.find(error) >= 0):
                 skip = True
                 print ("Error for ", url, ":", error)
                 break
@@ -381,60 +692,78 @@ def process (url):
         # Check for domain registrar redirects
         #
         for registrar in registrars:
-            if (r.url.find(registrar) >= 0):
+            if (rurl.find(registrar) >= 0):
                 skip = True
                 print ("Redirect ", url, " to domain registrar: ", registrar)
                 break
+        #
         if not skip:
+            #
+            # Unescape HTML escaped characters
+            #
+            untext = html.unescape(text)
+            soup = BeautifulSoup(untext)
+            #
+            # Get title, strip "<title>" and "</title>" to get name
+            #
+            name = html.unescape(str(soup.title))
+            #
+            name = re.sub("<title[^>]*>","",name,1)
+            name = name.replace("</title>","")
+            name = name.replace("\n","")
+            name = name.replace("\r","")
+            name = name.replace(","," ")
+            #
+            # Remove home page designation from name
+            #
+            for home in homepage:
+                name = re.sub(re.compile(home,re.IGNORECASE),"",name)
+            #
+            # Strip leading and trailing spaces
+            #
+            name = name.strip()
+            #
+            if verbose:
+                print ("name = ", name)
             #
             # Find contact link
             #
-            contact = findcontact (r.text)
+            contact = findcontact(rurl,soup)
             #
-            # print ("contact = ", contact)
+            # If not found, look for a telephone number
             #
-            # Find Facebook link
+            if contact == "":
+                contact = findtel(untext)
             #
-            facebook = findurl ("facebook.com", r.text)
-            # print ("facebook = ", facebook)
+            if verbose:
+                print ("contact = ", contact)
             #
-            # Find Instagram link
+            # Find social network links
             #
-            instagram = findurl ("instagram.com", r.text)
-            # print ("instagram = ", instagram)
+            links = []
+            for social in socials:
+                links.append(findurl(social,soup))
             #
-            # Find Twitter link
+            if verbose:
+                print ("links = ", links)
             #
-            twitter = findurl ("twitter.com", r.text)
-            # print ("twitter = ", twitter)
-            #
-            # Find YouTube link
-            #
-            youtube = findurl ("youtube.com", r.text)
-            # print ("youtube = ", youtube)
-            #
-            # Find LinkedIn link
-            #
-            linkedin = findurl ("linkedin.com", r.text)
-            # print ("linkedin = ", linkedin)
-            #
-            # Find Pinterest link
-            #
-            pinterest = findurl ("pinterest.com", r.text)
-            # print ("pinterest = ", pinterest)
-            #
-            # Find Vendor link
+            # Find if there is a vendor link
             #
             vendor = ""
-            for name in vendors:
-                if (r.text.find(name) >= 0):
-                    vendor = "https://www." + name
+            for link in vendors:
+                if (untext.find(link) >= 0):
+                    vendor = "https://www." + link + "/"
                     break
-            # print ("vendor = ", vendor)
+            #
+            if verbose:
+                print ("vendor = ", vendor)
             #
             # Find Copyright
             #
-            copyright = findcopyright(r.text).replace(","," ")
+            copyright = findcopyright(untext).replace(","," ")
+            #
+            if verbose:
+                print ("vendor = ", vendor)
             #
             # Check if copyright contains a chain
             #
@@ -442,23 +771,25 @@ def process (url):
             for chain in chains.keys():
                 if (copyright.find(chain) >= 0):
                     control = chains[chain]
-            # print ("control = ", control)
+            #
+            if verbose:
+                print ("control = ", control)
     else:
         skip = True
         rurl = url
+        name = ""
         contact = ""
-        facebook = ""
-        instagram = ""
-        twitter = ""
-        youtube = ""
-        linkedin = ""
-        pinterest = ""
+        links = []
         vendor = ""
         copyright = ""
         control = ""
-        if (exception):
+        if exception:
             copyright = error.replace(","," ")
-    return rurl, contact, facebook, instagram, twitter, youtube, linkedin, pinterest, vendor, copyright, control, skip
+    #
+    if (verbose):
+        print ("process:rurl = ", rurl, "name = ", name, "contact= ", contact, "links = ", links, "vendor = ", vendor, "copyright = ", copyright, "control = ", control, "skip = ", skip)
+    #
+    return rurl, name, contact, links, vendor, copyright, control, skip
 #
 # Main program
 #
@@ -468,73 +799,172 @@ if not sys.warnoptions:
     import warnings
     warnings.simplefilter("ignore")
 #
-# Set root_url
+# Create argument parser
 #
-if len(sys.argv) == 3:
-    # print ("sys.argv = ", sys.argv)
-    #
-    # Determine if arguments are .csv files
-    #
-    if sys.argv[1].endswith(".csv") and sys.argv[2].endswith(".csv"):
-        csv = True
-        #
-        # Open input.csv and output.csv files
-        #
-        infile = open(sys.argv[1],"r")
-        outfile = open(sys.argv[2],"w")
-        #
-        # Write headers to output .csv file
-        #
-        write_csv ("Name of Paper", "Website", "Contact", "Facebook", "Instagram", "Twitter", "Youtube", "LinkedIn", "Pinterest", "Vendor", "copyright", "Control", outfile)
-        #
-        lines = infile.readlines()
-        infile.close()
-        count = 0
-    else:
-        csv = False
-        lines = [sys.argv[1] + "," + sys.argv[2]]
-        #
-        # Create output trust.txt file name
-        #
-        filename = sys.argv[2]
-        index = filename.find("://")
-        filename = filename[index+3:len(filename)].replace("/","-")
-        if (filename.endswith("-")):
-            filename = filename + "trust.txt"
-        else:
-            filename = filename + "-trust.txt"
-        #
-        # Open output file
-        #
-        outfile = open(filename,"w")
-        count = 1
-    #
-    # print ("csv = ", csv)
-    # print ("lines = ", lines)
-    for line in lines:
-        # print ("line = ", line)
-        tuple = line.split(",")
-        # print ("tuple = ", tuple)
-        #
-        # Check if name provided
-        #
-        if len(tuple) == 2:
-            name=tuple[0].strip()
-            url=tuple[1].strip("\n")
-        else:
-            name="Publisher"
-            url=tuple[0].strip("\n")
-        #
-        if (count != 0):
-            print ("Processing: ", name, ", ", url)
-            rurl, contact, facebook, instagram, twitter, youtube, linkedin, pinterest, vendor, copyright, control, skip = process(url)
-            if not skip:
-                if csv:
-                    write_csv (name, rurl, contact, facebook, instagram, twitter, youtube, linkedin, pinterest, vendor, copyright, control, outfile)
-                else:
-                    write_trust_txt(name, rurl, contact, facebook, instagram, twitter, youtube, linkedin, pinterest, vendor, copyright, control, outfile)
-        count = count + 1
-    #
-    outfile.close()
+parser = argparse.ArgumentParser(description="Scrapes websites to discover: 'name', 'contact', 'social', and 'copyright' and writes trust.txt file. Optionally, checks webcrawler ouptut for additional 'belongto' entries.")
+parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true")
+parser.add_argument("-s", "--save", help="save HTML from the website", action="store_true")
+parser.add_argument("-r", "--redo", help="redo generation of trust.txt files from HTML previously saved with -s option", action="store_true")
+parser.add_argument("-j", "--forcejl", help="force belongto=https://www.journallist.net/", action="store_true")
+parser.add_argument("-d", "--dirname", help="name of directory to write output, defualt to current directory", type=str, action="store")
+parser.add_argument("-w", "--webcrawl", help="name of webcrawler output directory to check for belongto entries", type=str, action="store")
+parser.add_argument("url_or_filename", help="url to scrape or name of a .csv file containing a list of urls to scape", type=str, action="store")
+#
+# Parse arguments
+#
+args = parser.parse_args()
+#
+verbose = args.verbose
+redo = args.redo
+if redo:
+    save = False
 else:
-    print ("usage: sitescrape.py [input.csv output.csv | name website]")
+    save = args.save
+forcejl = args.forcejl
+dirname = str(args.dirname)
+webcrawl = str(args.webcrawl)
+url_or_filename = str(args.url_or_filename)
+#
+if (verbose):
+    print ("args = ", args)
+#
+belongtochk = False
+lines = []
+ecosys = []
+belongtos = []
+#
+# If the parameter does not begin with "http" and ends with ".csv", then read list of urls from file.
+#
+if not url_or_filename.startswith("http") and url_or_filename.endswith(".csv"):
+    csv = True
+    #
+    # Open .csv file file and read list of urls
+    #
+    infile = open(url_or_filename,encoding="utf-8-sig")
+    lines = infile.readlines()
+    infile.close()
+else:
+    csv = False
+    #
+    # Set lines to the url provided
+    #
+    lines.append(url_or_filename)
+#
+# If an output directory name is provided, check if it exists and create if necessary. Otherwise, set dirname to "."
+#
+if dirname != "None":
+    if not os.path.isdir(dirname):
+        #
+        # Create output directory
+        #
+        os.mkdir(dirname)
+else:
+    dirname = "."
+#
+# If webcrawl directory name is provided, check if webcrawl output file exists, open it, read the contents, and close it
+#
+filename = ""
+if (webcrawl != "None"):
+    filename = webcrawl + "/" + webcrawl + ".csv"
+    if os.path.isfile(filename):
+        belongtochk = True
+        crawlfile = open(filename, "r")
+        ecosys = crawlfile.readlines()
+        crawlfile.close()
+    else:
+        belongtochk = False
+        print (filename, " not found, skipping belongto checks")
+#
+# If processing a list of urls, create an output.csv file and write header.
+#
+if csv:
+    if dirname != ".":
+        csvfile = open(dirname + "/" + dirname + "-output.csv", "w")
+    else:
+        csvfile = open(dirname + "/output.csv", "w")
+    #
+    csvfile.write ("Name,Website,Contact,")
+    for social in socials:
+        csvfile.write (social + ",")
+    csvfile.write ("Vendor,Copyright,Control,belongto\n")
+#
+# Process each url
+#
+for url in lines:
+    #
+    url = url.strip("\n")
+    if url != "srcurl":
+        #
+        if verbose:
+            print ("Processing: ", url)
+        #
+        rurl, name, contact, links, vendor, copyright, control, skip = process(url,dirname)
+        #
+        if not skip:
+            #
+            # Create output trust.txt filename from url and prepend dirname.
+            #
+            filename = trustfilename(rurl,dirname)
+            #
+            if verbose:
+                print ("Filename = ", filename)
+            #
+            # If force belongto journallist.net
+            #
+            if forcejl:
+                belongtos = ["https://www.journallist.net/"]
+            else:
+                belongtos = []
+            #
+            # Check ecosystem for "member" and "belongto"
+            #
+            if belongtochk:
+                for entry in ecosys:
+                    #
+                    # Check if rurl is the member in a member entry in the ecosystem, if so append the srcurl to the belongtos list
+                    #
+                    index = url.find("://")
+                    domain = url[index+3:len(url)]
+                    index1 = entry.find(domain)
+                    if index1 >= 0:
+                        index2 = entry.find(",member,")
+                        if index2 >=0 and index1 > index2:
+                            blng = entry[0:index2]
+                            if blng not in belongtos:
+                                belongtos.append(blng)
+                        else:
+                            index3 = entry.find(",belongto,")
+                            if index3 >=0 and index3 > index1:
+                                blng = entry[index3+10:len(entry)-1]
+                                if blng not in belongtos:
+                                    belongtos.append(blng)
+            #
+            # Open trust.txt file, write contents, and close it.
+            #
+            trustfile = open(filename, "w")
+            write_trust_txt(name, rurl, contact, links, vendor, copyright, control, belongtos, trustfile)
+            trustfile.close()
+            #
+            # If processing a list of urls, write to output.csv file
+            #
+            if csv:
+                csvfile.write (name + "," + rurl + "," + contact)
+                #
+                # Write socials
+                #
+                for link in links:
+                    csvfile.write ("," + link)
+                csvfile.write ("," + vendor + "," + copyright + "," + control)
+                #
+                # Write belongtos
+                #
+                for blng in belongtos:
+                    csvfile.write ("," + blng)
+                #
+                csvfile.write ("\n")
+
+#
+# Close output.csv file if necessary
+#
+if csv:
+    csvfile.close()
