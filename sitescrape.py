@@ -197,7 +197,6 @@ homepage = ["home page [-|\|]", "home page$", "homepage [-|\|]", "homepage$", "h
 #
 # Define various forms of "contact" in contact urls
 #
-# contactlist = ["[^-]contact-us[^-]", "[^-]about-us[^-]", "[^-]contact[^-]", "[^-]about[^-]", "[^-]connect[^-]", "[^-]kontakt[^-]", "mailto:"]
 contactlist = ["contact-us", "about-us", "contact", "about", "connect", "kontakt", "mailto:"]
 #
 # Set verbose and save modes to False
@@ -373,8 +372,8 @@ def findurl(string,soup):
             #
             # Check for exception match or if the string is not in the found url, if so check next match
             #
-            if string.startswith("[^-]") and string.endswith("[^-]"):
-                teststr = string[4:len(string)-4]
+            if string.endswith(".com"):
+                teststr = string[0:len(string)-4]
             else:
                 teststr = string
             #
@@ -742,7 +741,25 @@ def process (url,dirname):
             #
             links = []
             for social in socials:
-                links.append(findurl(social,soup))
+                socialurl = findurl(social,soup)
+                #
+                # If not found try removing ".com" and prepending "/"
+                #
+                if socialurl == "":
+                    social = "/" + social[0:len(social)-4]
+                    socialurl = findurl(social,soup)
+                    #
+                    # If found starting with "/" prepend baseurl
+                    #
+                    if socialurl.startswith("/"):
+                        index1 = rurl.find("://") + 3
+                        index2 = rurl[index1:len(rurl)].find("/")
+                        baseurl = rurl[0:index1+index2]
+                        if baseurl.endswith("/"):
+                            socialurl = baseurl + socialurl[1:len(socialurl)]
+                        else:
+                            socialurl = baseurl + socialurl
+                links.append(socialurl)
             #
             if verbose:
                 print ("links = ", links)
@@ -893,7 +910,7 @@ if csv:
 for url in lines:
     #
     url = url.strip("\n")
-    if url != "srcurl":
+    if url.startswith("http"):
         #
         if verbose:
             print ("Processing: ", url)
