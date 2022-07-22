@@ -83,7 +83,7 @@ vendors = [
     "disqus.com",
     "locablepublishernetwork.com",
     "metropublisher.com",
-    "intertechmedia.com",
+    "intertechmedia.com",   
     "tecnavia.com"
     ]
 #
@@ -276,15 +276,17 @@ def fetchurl(url):
     #
     return success, exception, r, error
 #
-# write_trust_txt (website, contact, links, vendor, copyright, control, csvfile) - Write the trust.txt file.
+# write_trust_txt (website, contact, links, vendor, copyright, cntrldby, csvfile) - Write the trust.txt file.
 #
-def write_trust_txt (name, website, contact, links, vendor, copyright, control, belongtos, output):
+def write_trust_txt (name, website, contact, links, vendor, copyright, controls, cntrldby, members, belongtos, output):
     #
     # Define trust.txt file header and commment text
     #
     header = "# NAME trust.txt file\n#\n# For more information on trust.txt see:\n# 1. https://journallist.net - Home of the trust.txt specification\n# 2. https://datatracker.ietf.org/doc/html/rfc8615 - IETF RFC 8615 - Well-Known Uniform Resource Identifiers (URIs)\n# 3. https://www.iana.org/assignments/well-known-uris/well-known-uris.xhtml - IANA's list of registered Well-Known URIs\n#\n"
     contolledby = "# NAME is controlled by the following organization\n#\n"
+    control = "# NAME controls the following organization\n#\n"
     belongto = "# NAME belongs to the following organizations\n#\n"
+    member = "# NAME has the following organizations as members\n#\n"
     social = "# NAME social networks\n#\n"
     vndr = "#\n# NAME vendors\n#\n"
     cntct = "#\n# NAME contact info\n#\n"
@@ -293,11 +295,27 @@ def write_trust_txt (name, website, contact, links, vendor, copyright, control, 
     #
     output.write (header.replace("NAME",name))
     #
+    # If there is are sites that are controlled, write the "control="" entries
+    #
+    if len(controls) > 0:
+        output.write (control.replace("NAME",name))
+        for cntrl in controls:
+            output.write ("control=" + cntrl + "\n")
+        output.write("#\n")
+    #
     # If there is a controlling site, write the "controlledby="" entry
     #
-    if control != "":
+    if cntrldby != "":
         output.write (contolledby.replace("NAME",name))
-        output.write ("controlledby=" + control + "\n#\n")
+        output.write ("controlledby=" + cntrldby + "\n#\n")
+    #
+    # If there are members, write the "member=" entries
+    #
+    if len(members) > 0:
+        output.write (member.replace("NAME",name))
+        for membr in members:
+            output.write ("member=" + membr + "\n")
+        output.write("#\n")
     #
     # Write "belongto="" entry
     #
@@ -636,7 +654,8 @@ def process (url,dirname):
     links = []
     vendor = ""
     copyright = ""
-    control = ""
+    cntrl = ""
+    cntrldby = ""
     #
     # If redo, read contents of HTML file previously saved, Fetch home page
     #
@@ -678,7 +697,8 @@ def process (url,dirname):
         contact = ""
         vendor = ""
         copyright = ""
-        control = ""
+        cntrl = ""
+        cntrldby = ""
         #
         # Check for errors
         #
@@ -784,13 +804,13 @@ def process (url,dirname):
             #
             # Check if copyright contains a chain
             #
-            control = ""
+            cntrldby = ""
             for chain in chains.keys():
                 if (copyright.find(chain) >= 0):
-                    control = chains[chain]
+                    cntrldby = chains[chain]
             #
             if verbose:
-                print ("control = ", control)
+                print ("cntrldby = ", cntrldby)
     else:
         skip = True
         rurl = url
@@ -799,14 +819,74 @@ def process (url,dirname):
         links = []
         vendor = ""
         copyright = ""
-        control = ""
+        cntrl = ""
+        cntrldby = ""
         if exception:
             copyright = error.replace(","," ")
     #
     if (verbose):
-        print ("process:rurl = ", rurl, "name = ", name, "contact= ", contact, "links = ", links, "vendor = ", vendor, "copyright = ", copyright, "control = ", control, "skip = ", skip)
+        print ("process:rurl = ", rurl, "name = ", name, "contact= ", contact, "links = ", links, "vendor = ", vendor, "copyright = ", copyright, "cntrl = ", cntrl, "cntrldby = ", cntrldby, "skip = ", skip)
     #
-    return rurl, name, contact, links, vendor, copyright, control, skip
+    return rurl, name, contact, links, vendor, copyright, cntrl, cntrldby, skip
+#
+# chkecosys (url, ecosys) - Check for url in ecosystem, if present return attributes discovered
+#
+def chkecosys (url, ecosys):
+    #
+    # Initialize variables
+    #
+    contact = ""
+    links = []
+    vendor = ""
+    controls = []
+    controlledby = ""
+    members = []
+    belongtos = []
+    domain = url[url.find("://")+3:len(url)]
+    #
+    if verbose:
+        print ("chkecosys:domain = ", domain)
+    #
+    for entry in ecosys:
+        #
+        # Split entry into srcurl, attr, refurl
+        #
+        entry = entry.strip("\n")
+        temp = entry.split(",",2)
+        #
+        srcurl = temp[0]
+        attr = temp[1]
+        refurl = temp[2]
+        #
+        # Check if domain is in the srcurl
+        #
+        if srcurl.find(domain) > 0:
+            #
+            # If this is a srcurl, then capture attributes of existing trust.txt file
+            #
+            if attr == "belongto" and refurl not in belongtos:
+                belongtos.append(refurl)
+            elif attr == "member" and refurl not in members:
+                members.append(refurl)
+            elif attr == "social" and refurl not in links:
+                links.append(refurl)
+            elif attr == "contact":
+                contact = refurl
+            elif attr == "control" and refurl not in controls:
+                controls.append(refurl)
+            elif attr == "controlledby":
+                controlledby = refurl
+            elif attr == "vendor":
+                vendor = refurl
+        #
+        # Check if url is the refurl in a member entry in the ecosystem, if so append the srcurl to the belongtos list if not already present
+        #
+        if refurl.find(domain) > 0 and attr == "member" and srcurl not in belongtos:
+            belongtos.append(srcurl)
+    if verbose:
+        print ("contact = ", contact, "links = ", links, "vendor", vendor, "control = ", controls, "controlledby = ", controlledby, "members = ", members, "belongtos = ", belongtos)
+    #
+    return contact, links, vendor, controls, controlledby, members, belongtos
 #
 # Main program
 #
@@ -845,9 +925,10 @@ url_or_filename = str(args.url_or_filename)
 if (verbose):
     print ("args = ", args)
 #
-belongtochk = False
+ecosyschk = False
 lines = []
 ecosys = []
+members = []
 belongtos = []
 #
 # If the parameter does not begin with "http" and ends with ".csv", then read list of urls from file.
@@ -884,12 +965,12 @@ filename = ""
 if (webcrawl != "None"):
     filename = webcrawl + "/" + webcrawl + ".csv"
     if os.path.isfile(filename):
-        belongtochk = True
+        ecosyschk = True
         crawlfile = open(filename, "r")
         ecosys = crawlfile.readlines()
         crawlfile.close()
     else:
-        belongtochk = False
+        ecosyschk = False
         print (filename, " not found, skipping belongto checks")
 #
 # If processing a list of urls, create an output.csv file and write header.
@@ -903,7 +984,7 @@ if csv:
     csvfile.write ("Name,Website,Contact,")
     for social in socials:
         csvfile.write (social + ",")
-    csvfile.write ("Vendor,Copyright,Control,belongto\n")
+    csvfile.write ("Vendor,Copyright,Controlledby,Belongto\n")
 #
 # Process each url
 #
@@ -915,7 +996,7 @@ for url in lines:
         if verbose:
             print ("Processing: ", url)
         #
-        rurl, name, contact, links, vendor, copyright, control, skip = process(url,dirname)
+        rurl, name, contact, links, vendor, copyright, cntrl, cntrldby, skip = process(url,dirname)
         #
         if not skip:
             #
@@ -926,40 +1007,20 @@ for url in lines:
             if verbose:
                 print ("Filename = ", filename)
             #
-            # If force belongto journallist.net
+            # If ecosystem check enabled, check ecosystem for entries for this url
             #
-            if forcejl:
-                belongtos = ["https://www.journallist.net/"]
-            else:
-                belongtos = []
+            if ecosyschk:
+                contact, links, vendor, controls, cntrldby, members, belongtos = chkecosys (rurl, ecosys)
             #
-            # Check ecosystem for "member" and "belongto"
+            # If force belongto journallist.net append it to the belongtos list if not already present
             #
-            if belongtochk:
-                for entry in ecosys:
-                    #
-                    # Check if rurl is the member in a member entry in the ecosystem, if so append the srcurl to the belongtos list
-                    #
-                    index = url.find("://")
-                    domain = url[index+3:len(url)]
-                    index1 = entry.find(domain)
-                    if index1 >= 0:
-                        index2 = entry.find(",member,")
-                        if index2 >=0 and index1 > index2:
-                            blng = entry[0:index2]
-                            if blng not in belongtos:
-                                belongtos.append(blng)
-                        else:
-                            index3 = entry.find(",belongto,")
-                            if index3 >=0 and index3 > index1:
-                                blng = entry[index3+10:len(entry)-1]
-                                if blng not in belongtos:
-                                    belongtos.append(blng)
+            if forcejl and "journallist.net" not in belongtos:
+                belongtos.append("https://www.journallist.net/")
             #
             # Open trust.txt file, write contents, and close it.
             #
             trustfile = open(filename, "w")
-            write_trust_txt(name, rurl, contact, links, vendor, copyright, control, belongtos, trustfile)
+            write_trust_txt(name, rurl, contact, links, vendor, copyright, controls, cntrldby, members, belongtos, trustfile)
             trustfile.close()
             #
             # If processing a list of urls, write to output.csv file
@@ -971,7 +1032,7 @@ for url in lines:
                 #
                 for link in links:
                     csvfile.write ("," + link)
-                csvfile.write ("," + vendor + "," + copyright + "," + control)
+                csvfile.write ("," + vendor + "," + copyright + "," + cntrldby)
                 #
                 # Write belongtos
                 #
@@ -979,7 +1040,6 @@ for url in lines:
                     csvfile.write ("," + blng)
                 #
                 csvfile.write ("\n")
-
 #
 # Close output.csv file if necessary
 #
