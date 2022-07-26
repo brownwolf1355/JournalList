@@ -36,55 +36,55 @@ from urllib.parse import unquote
 # Define set of error text to check in returned HTML text
 #
 errors = [
-    "Page Not Found",
-    "Site Not Found",
     "Access denied",
-    "Server Error",
-    "Private Site",
-    "Under Construction",
+    "ErrorPageController",
     "OH SNAP!",
-    "ErrorPageController"
+    "Page Not Found",
+    "Private Site",
+    "Server Error",
+    "Site Not Found",
+    "Under Construction"
     ]
 #
 # Define list of domain registrars to check for expired domains
 #
 registrars = [
-    "www.hugedomains.com",
-    "www.domain.com",
-    "www.godaddy.com",
-    "www.namecheap.com",
-    "www.name.com",
-    "www.enom.com",
-    "www.dynadot.com",
-    "www.namesilo.com",
     "www.123-reg.co.uk",
-    "www.bluehost.com"
+    "www.bluehost.com",
+    "www.domain.com",
+    "www.dynadot.com",
+    "www.enom.com",
+    "www.godaddy.com",
+    "www.hugedomains.com",
+    "www.name.com",
+    "www.namecheap.com",
+    "www.namesilo.com"
     ]
 #
 # Define list of known vendors, add to this list to add new vendors
 #
 vendors = [
+    "887media.com",
     "bulletlink.com",
     "creativecirclemedia.com",
-    "dirxion.com",
-    "going1up.com",
-    "our-hometown.com",
-    "townnews.com",
-    "887media.com",
+    "creativecirclemedia.com",
     "crowct.com",
+    "dirxion.com",
+    "disqus.com",
     "etypeservices.com",
     "etypeservices.net",
-    "surfnewmedia.com",
-    "websitesfornewspapers.com",
-    "xyzscripts.com",
-    "publishwithfoundation.com",
-    "socastdigital.com",
-    "creativecirclemedia.com",
-    "disqus.com",
+    "going1up.com",
+    "intertechmedia.com", 
     "locablepublishernetwork.com",
     "metropublisher.com",
-    "intertechmedia.com",   
-    "tecnavia.com"
+    "our-hometown.com",
+    "publishwithfoundation.com",
+    "socastdigital.com",
+    "surfnewmedia.com",
+    "tecnavia.com",
+    "townnews.com",
+    "websitesfornewspapers.com",
+    "xyzscripts.com"
     ]
 #
 # Define media conglomerates that publish multiple brands on different domains, add to this list to add new media conglomerates
@@ -103,6 +103,7 @@ chains = {
     "Hearst":"https://www.hearst.com/",
     "Independent Newsmedia":"https://newszap.com/",
     "Lee Enterprises":"https://lee.net/",
+    "Mansueto":"https://www.mansueto.com/",
     "MediaNews Group":"https://www.medianewsgroup.com/",
     "Mountain Media":"https://mountainmedianews.com/",
     "News Media Corporation":"http://www.newsmediacorporation.com/",
@@ -120,10 +121,10 @@ chains = {
 socials = [
     "facebook.com",
     "instagram.com",
-    "twitter.com",
-    "youtube.com",
     "linkedin.com",
-    "pinterest.com"
+    "pinterest.com",
+    "twitter.com",
+    "youtube.com"
     ]
 #
 # Define url exceptions, primarily to catch social network references that aren't the actual handle for the organization
@@ -279,6 +280,8 @@ def fetchurl(url):
 # write_trust_txt (website, contact, links, vendor, copyright, cntrldby, csvfile) - Write the trust.txt file.
 #
 def write_trust_txt (name, website, contact, links, vendor, copyright, controls, cntrldby, members, belongtos, output):
+    if verbose:
+        print ("write_trust_txt:name = ", name, "website = ", website, "contact= ", contact, "links = ", links, "vendor = ", vendor, "copyright = ", copyright, " = ", controls, "cntrldby = ", cntrldby, "members = ", members, "belongtos = ", belongtos)
     #
     # Define trust.txt file header and commment text
     #
@@ -843,6 +846,7 @@ def chkecosys (url, ecosys):
     members = []
     belongtos = []
     domain = url[url.find("://")+3:len(url)]
+    found = False
     #
     if verbose:
         print ("chkecosys:domain = ", domain)
@@ -864,6 +868,7 @@ def chkecosys (url, ecosys):
             #
             # If this is a srcurl, then capture attributes of existing trust.txt file
             #
+            found = True
             if attr == "belongto" and refurl not in belongtos:
                 belongtos.append(refurl)
             elif attr == "member" and refurl not in members:
@@ -886,9 +891,19 @@ def chkecosys (url, ecosys):
     if verbose:
         print ("contact = ", contact, "links = ", links, "vendor", vendor, "control = ", controls, "controlledby = ", controlledby, "members = ", members, "belongtos = ", belongtos)
     #
+    if found:
+        print ("Found: ", url, "in ecosystem")
+    #
     return contact, links, vendor, controls, controlledby, members, belongtos
 #
 # Main program
+#
+# To limit the number of columns in the output.csv file, set the maximum number of "control", "belongto", and "member" columns to match the number of "social" columns
+#
+maxsocial = len (socials)
+maxcontrol = maxsocial
+maxbelongto = maxsocial
+maxmember = maxsocial
 #
 # Ignore warnings
 #
@@ -930,6 +945,7 @@ lines = []
 ecosys = []
 members = []
 belongtos = []
+controls = []
 #
 # If the parameter does not begin with "http" and ends with ".csv", then read list of urls from file.
 #
@@ -981,10 +997,16 @@ if csv:
     else:
         csvfile = open(dirname + "/output.csv", "w")
     #
-    csvfile.write ("Name,Website,Contact,")
+    csvfile.write ("Name,Website,Contact,Vendor,Copyright,Controlledby")
     for social in socials:
-        csvfile.write (social + ",")
-    csvfile.write ("Vendor,Copyright,Controlledby,Belongto\n")
+        csvfile.write ("," + social)
+    for i in range(1,maxbelongto):
+        csvfile.write (",Belongto")
+    for i in range(1,maxcontrol):
+        csvfile.write (",Control")
+    for i in range(1,maxmember):
+        csvfile.write (",Member")
+    csvfile.write ("\n")
 #
 # Process each url
 #
@@ -993,8 +1015,7 @@ for url in lines:
     url = url.strip("\n")
     if url.startswith("http"):
         #
-        if verbose:
-            print ("Processing: ", url)
+        print ("Processing: ", url)
         #
         rurl, name, contact, links, vendor, copyright, cntrl, cntrldby, skip = process(url,dirname)
         #
@@ -1007,10 +1028,24 @@ for url in lines:
             if verbose:
                 print ("Filename = ", filename)
             #
-            # If ecosystem check enabled, check ecosystem for entries for this url
+            # If ecosystem check enabled, check ecosystem for entries for this url, if entries are found, then overwrite those found on the website
             #
             if ecosyschk:
-                contact, links, vendor, controls, cntrldby, members, belongtos = chkecosys (rurl, ecosys)
+                ecocontact, ecolinks, ecovendor, ecocontrols, ecocntrldby, ecomembers, ecobelongtos = chkecosys (rurl, ecosys)
+                if ecocontact != "":
+                    contact = ecocontact
+                if ecovendor != "":
+                    vendor = ecovendor
+                if len(ecolinks) != 0:
+                    links = ecolinks
+                if len(ecocontrols) != 0:
+                    controls = ecocontrols
+                if ecocntrldby != "":
+                    cntrldby = ecocntrldby
+                if len(ecomembers) != 0:
+                    members = ecomembers
+                if len(ecobelongtos) != 0:
+                    belongtos = ecobelongtos
             #
             # If force belongto journallist.net append it to the belongtos list if not already present
             #
@@ -1026,18 +1061,42 @@ for url in lines:
             # If processing a list of urls, write to output.csv file
             #
             if csv:
-                csvfile.write (name + "," + rurl + "," + contact)
+                if verbose:
+                    print ("name = ", name, "rurl = ", rurl, "contact = ", contact, "links = ", links, "vendor = ", vendor, "copyright = ", copyright, "controls = ", controls, "cntrldby = ", cntrldby, "members = ", members, "belongtos = ", belongtos)
+                #
+                csvfile.write (name + "," + rurl + "," + contact + "," + vendor + "," + copyright + "," + cntrldby)
                 #
                 # Write socials
                 #
-                for link in links:
-                    csvfile.write ("," + link)
-                csvfile.write ("," + vendor + "," + copyright + "," + cntrldby)
+                for i in range(1,maxsocial):
+                    if i < len(links):
+                        csvfile.write ("," + links[i])
+                    else:
+                        csvfile.write (",")
                 #
                 # Write belongtos
                 #
-                for blng in belongtos:
-                    csvfile.write ("," + blng)
+                for i in range(1,maxbelongto):
+                    if i < len(belongtos):
+                        csvfile.write ("," + belongtos[i])
+                    else:
+                        csvfile.write (",")
+                #
+                # Write controls
+                #
+                for i in range(1,maxcontrol):
+                    if i < len(controls):
+                        csvfile.write ("," + controls[i])
+                    else:
+                        csvfile.write (",")
+                #
+                # Write members
+                #
+                for i in range(1,maxmember):
+                    if i < len(members):
+                        csvfile.write ("," + members[i])
+                    else:
+                        csvfile.write (",")
                 #
                 csvfile.write ("\n")
 #
