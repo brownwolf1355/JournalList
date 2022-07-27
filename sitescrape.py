@@ -37,13 +37,18 @@ from urllib.parse import unquote
 #
 errors = [
     "Access denied",
+    "Domain Not Valid",
     "ErrorPageController",
+    "Index of",
     "OH SNAP!",
     "Page Not Found",
     "Private Site",
     "Server Error",
     "Site Not Found",
-    "Under Construction"
+    "This is the default server vhost",
+    "Under Construction",
+    "Untitled Page",
+    "Welcome to nginx!"
     ]
 #
 # Define list of domain registrars to check for expired domains
@@ -198,7 +203,11 @@ homepage = ["home page [-|\|]", "home page$", "homepage [-|\|]", "homepage$", "h
 #
 # Define various forms of "contact" in contact urls
 #
-contactlist = ["contact-us", "about-us", "contact", "about", "connect", "kontakt", "mailto:"]
+contactlist = ["contact-us", "about-us", "contact", "about", "connect", "kontakt", "station-information", "mailto:"]
+#
+# Define various forms embedded in blocked urls' name
+#
+blocklist = ["None", "Cloudflare", "Error", "Just a moment", "Not Found", "You are being redirected"]
 #
 # Set verbose and save modes to False
 #
@@ -745,6 +754,16 @@ def process (url,dirname):
             #
             name = name.strip()
             #
+            # Check if name indicates site was blocked
+            #
+            blocked = False
+            for block in blocklist:
+                if name.find(block) >=0:
+                    blocked = True
+                    break
+            if blocked:
+                name = "Site Blocked"
+            #
             if verbose:
                 print ("name = ", name)
             #
@@ -888,6 +907,7 @@ def chkecosys (url, ecosys):
         #
         if refurl.find(domain) > 0 and attr == "member" and srcurl not in belongtos:
             belongtos.append(srcurl)
+        #
     if verbose:
         print ("contact = ", contact, "links = ", links, "vendor", vendor, "control = ", controls, "controlledby = ", controlledby, "members = ", members, "belongtos = ", belongtos)
     #
@@ -998,8 +1018,8 @@ if csv:
         csvfile = open(dirname + "/output.csv", "w")
     #
     csvfile.write ("Name,Website,Contact,Vendor,Copyright,Controlledby")
-    for social in socials:
-        csvfile.write ("," + social)
+    for i in range(1,maxsocial):
+        csvfile.write (",Social")
     for i in range(1,maxbelongto):
         csvfile.write (",Belongto")
     for i in range(1,maxcontrol):
@@ -1049,7 +1069,7 @@ for url in lines:
             #
             # If force belongto journallist.net append it to the belongtos list if not already present
             #
-            if forcejl and "journallist.net" not in belongtos:
+            if forcejl and "https://www.journallist.net/" not in belongtos:
                 belongtos.append("https://www.journallist.net/")
             #
             # Open trust.txt file, write contents, and close it.
