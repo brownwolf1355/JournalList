@@ -21,6 +21,7 @@
 # License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
 #
 #--------------------------------------------------------------------------------------------------
+from ossaudiodev import control_labels
 import sys
 import os
 import requests
@@ -207,7 +208,16 @@ contactlist = ["contact-us", "about-us", "contact", "about", "connect", "kontakt
 #
 # Define various forms embedded in blocked urls' name
 #
-blocklist = ["None", "Cloudflare", "Error", "Just a moment", "Not Found", "You are being redirected"]
+blocklist = [
+    "Are you a robot",
+    "Cloudflare",
+    "Error",
+    "Just a moment",
+    "Loading",
+    "None",
+    "Not Found",
+    "You are being redirected"
+    ]
 #
 # Set verbose and save modes to False
 #
@@ -290,7 +300,7 @@ def fetchurl(url):
 #
 def write_trust_txt (name, website, contact, links, vendor, copyright, controls, cntrldby, members, belongtos, output):
     if verbose:
-        print ("write_trust_txt:name = ", name, "website = ", website, "contact= ", contact, "links = ", links, "vendor = ", vendor, "copyright = ", copyright, " = ", controls, "cntrldby = ", cntrldby, "members = ", members, "belongtos = ", belongtos)
+        print ("write_trust_txt:name = ", name, "website = ", website, "contact= ", contact, "links = ", links, "vendor = ", vendor, "copyright = ", copyright, " controls = ", controls, "cntrldby = ", cntrldby, "members = ", members, "belongtos = ", belongtos)
     #
     # Define trust.txt file header and commment text
     #
@@ -684,17 +694,6 @@ def process (url,dirname):
     #
     if success:
         #
-        # Save file if -s option used
-        #
-        if save:
-            #
-            # If save HTML, create output filename from url, prepend dirname, and write response
-            #
-            filename = htmlfilename(rurl,dirname)
-            file = open(filename,"w")
-            file.write(r.text)
-            file.close()
-        #
         skip = False
         #
         # Remove text after "?" or "#" from returned url
@@ -705,12 +704,17 @@ def process (url,dirname):
         index = rurl.find("#")
         if index > 0:
             rurl = rurl[0:index-1]
-        name = ""
-        contact = ""
-        vendor = ""
-        copyright = ""
-        cntrl = ""
-        cntrldby = ""
+        #
+        # Save file if -s option used
+        #
+        if save:
+            #
+            # If save HTML, create output filename from url, prepend dirname, and write response
+            #
+            filename = htmlfilename(rurl,dirname)
+            file = open(filename,"w")
+            file.write(r.text)
+            file.close()
         #
         # Check for errors
         #
@@ -914,7 +918,7 @@ def chkecosys (url, ecosys):
     if found:
         print ("Found: ", url, "in ecosystem")
     #
-    return contact, links, vendor, controls, controlledby, members, belongtos
+    return found, contact, links, vendor, controls, controlledby, members, belongtos
 #
 # Main program
 #
@@ -1007,7 +1011,7 @@ if (webcrawl != "None"):
         crawlfile.close()
     else:
         ecosyschk = False
-        print (filename, " not found, skipping belongto checks")
+        print (filename, " not found, skipping ecosystem checks")
 #
 # If processing a list of urls, create an output.csv file and write header.
 #
@@ -1035,9 +1039,27 @@ for url in lines:
     url = url.strip("\n")
     if url.startswith("http"):
         #
+        # Reset results
+        #
+        name = ""
+        contact = ""
+        links = []
+        copyright = ""
+        control_labels = []
+        cntrldby = ""
+        members = []
+        belongtos = []
+        ecocontact = ""
+        ecovendor = ""
+        ecolinks = []
+        ecocontrols = []
+        ecocntrldby = ""
+        ecomembers = []
+        ecobelongtos = []
+        #
         print ("Processing: ", url)
         #
-        rurl, name, contact, links, vendor, copyright, cntrl, cntrldby, skip = process(url,dirname)
+        rurl, name, contact, links, vendor, copyright, controls, cntrldby, skip = process(url,dirname)
         #
         if not skip:
             #
@@ -1051,7 +1073,13 @@ for url in lines:
             # If ecosystem check enabled, check ecosystem for entries for this url, if entries are found, then overwrite those found on the website
             #
             if ecosyschk:
-                ecocontact, ecolinks, ecovendor, ecocontrols, ecocntrldby, ecomembers, ecobelongtos = chkecosys (rurl, ecosys)
+                found, ecocontact, ecolinks, ecovendor, ecocontrols, ecocntrldby, ecomembers, ecobelongtos = chkecosys (rurl, ecosys)
+                #
+                if verbose:
+                    print ("found = ", found, "ecocontact = ", ecocontact, "ecolinks = ", ecolinks, "ecovendor = ", ecovendor, "ecocontrols = ", ecocontrols, "ecocntrldby = ", ecocntrldby, "ecomembers = ", ecomembers, "ecobelongtos = ", ecobelongtos)
+                # 
+                # If found in ecosystem check, choose the ecosystem values if present
+                #
                 if ecocontact != "":
                     contact = ecocontact
                 if ecovendor != "":
@@ -1066,6 +1094,9 @@ for url in lines:
                     members = ecomembers
                 if len(ecobelongtos) != 0:
                     belongtos = ecobelongtos
+                #
+                if verbose:
+                    print ("contact = ", contact, "links = ", links, "vendor = ", vendor, "controls = ", controls, "ecocntrldby = ", cntrldby, "members = ", members, "belongtos = ", belongtos)
             #
             # If force belongto journallist.net append it to the belongtos list if not already present
             #
