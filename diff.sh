@@ -43,4 +43,16 @@ echo "Removed:"
 grep "< " temp
 echo "Added:"
 grep "> " temp
-rm temp
+echo ""
+echo "Well-known.dev resources"
+sed "s/[^,]*,\([^,]*\).*/\1/" $DIRNAME1/$DIRNAME1-resources.csv | sort > temp1
+sed "s/[^,]*,\([^,]*\).*/\1/" $DIRNAME2/$DIRNAME2-resources.csv | sort > temp2
+diff temp1 temp2 > temp
+echo "Removed:"
+grep "< " temp
+echo "Added:"
+grep "> " temp
+rm temp temp1 temp2
+echo ""
+echo "Domains with trust.txt files found by well-known.dev"
+grep -A 1000 "BEGIN: processing well-known.dev resource list" $DIRNAME2/$DIRNAME2-log.txt | grep "Fetching" | sed -e "s/[^ ]* \([^ ]*\).*/\1/" -e "s/https:\/\/www.//" -e "s/\/trust.txt//"

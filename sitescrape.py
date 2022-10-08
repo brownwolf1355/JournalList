@@ -13,7 +13,8 @@
 #   -h, --help            show this help message and exit
 #   -v, --verbose         increase output verbosity
 #   -s, --save            save HTML from the website
-#   -j, -J                force trust.txt files to include "https://www.journallist.net/"
+#   -j, -J                force trust.txt files to include "belongto=https://www.journallist.net/"
+#   -c URL                force trust.txt files to include "controlledby=URL"
 #   -d DIRNAME            name of directory to write output, defualt to current directory
 #   -w WEBCRAWL           name of webcrawler output directory to check for belongto entries
 #
@@ -21,7 +22,6 @@
 # License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
 #
 #--------------------------------------------------------------------------------------------------
-from ossaudiodev import control_labels
 import sys
 import os
 import requests
@@ -39,6 +39,7 @@ from urllib.parse import unquote
 errors = [
     "Access denied",
     "Domain Not Valid",
+    "Drupal",
     "ErrorPageController",
     "Index of",
     "OH SNAP!",
@@ -195,7 +196,8 @@ embedded = [
     "-about-",
     "abouts",
     "-connect",
-    "contact-form"
+    "contact-form",
+    "addtoany.com"
     ]
 #
 # Define home page variants (ignoring case) for removal from site name
@@ -306,7 +308,7 @@ def write_trust_txt (name, website, contact, links, vendor, copyright, controls,
     #
     header = "# NAME trust.txt file\n#\n# For more information on trust.txt see:\n# 1. https://journallist.net - Home of the trust.txt specification\n# 2. https://datatracker.ietf.org/doc/html/rfc8615 - IETF RFC 8615 - Well-Known Uniform Resource Identifiers (URIs)\n# 3. https://www.iana.org/assignments/well-known-uris/well-known-uris.xhtml - IANA's list of registered Well-Known URIs\n#\n"
     contolledby = "# NAME is controlled by the following organization\n#\n"
-    control = "# NAME controls the following organization\n#\n"
+    control = "# NAME controls the following organizations\n#\n"
     belongto = "# NAME belongs to the following organizations\n#\n"
     member = "# NAME has the following organizations as members\n#\n"
     social = "# NAME social networks\n#\n"
@@ -942,6 +944,7 @@ parser.add_argument("-v", "--verbose", help="increase output verbosity", action=
 parser.add_argument("-s", "--save", help="save HTML from the website", action="store_true")
 parser.add_argument("-r", "--redo", help="redo generation of trust.txt files from HTML previously saved with -s option", action="store_true")
 parser.add_argument("-j", "--forcejl", help="force belongto=https://www.journallist.net/", action="store_true")
+parser.add_argument("-c", "--url", help="force controlledby=URL", type=str, action="store")
 parser.add_argument("-d", "--dirname", help="name of directory to write output, defualt to current directory", type=str, action="store")
 parser.add_argument("-w", "--webcrawl", help="name of webcrawler output directory to check for belongto entries", type=str, action="store")
 parser.add_argument("url_or_filename", help="url to scrape or name of a .csv file containing a list of urls to scape", type=str, action="store")
@@ -957,6 +960,7 @@ if redo:
 else:
     save = args.save
 forcejl = args.forcejl
+controlledby = str(args.url)
 dirname = str(args.dirname)
 webcrawl = str(args.webcrawl)
 url_or_filename = str(args.url_or_filename)
@@ -1102,6 +1106,11 @@ for url in lines:
             #
             if forcejl and "https://www.journallist.net/" not in belongtos:
                 belongtos.append("https://www.journallist.net/")
+            #
+            # If force controlledby set ctrldby
+            #
+            if (controlledby != "") and cntrldby == "":
+                cntrldby = controlledby
             #
             # Open trust.txt file, write contents, and close it.
             #
