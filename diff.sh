@@ -44,6 +44,15 @@ grep "< " temp
 echo "Added:"
 grep "> " temp
 echo ""
+echo "trust.txt files"
+awk -F "," '{ print $1 }' $DIRNAME1/$DIRNAME1.csv | sort | uniq > temp1
+awk -F "," '{ print $1 }' $DIRNAME2/$DIRNAME2.csv | sort | uniq > temp2
+diff temp1 temp2 > temp
+echo "Removed:"
+grep "< " temp
+echo "Added:"
+grep "> " temp
+echo ""
 echo "Well-known.dev resources"
 sed "s/[^,]*,\([^,]*\).*/\1/" $DIRNAME1/$DIRNAME1-resources.csv | sort > temp1
 sed "s/[^,]*,\([^,]*\).*/\1/" $DIRNAME2/$DIRNAME2-resources.csv | sort > temp2
