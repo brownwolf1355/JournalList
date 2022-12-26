@@ -45,59 +45,94 @@ import sys
 import os
 import time
 import requests
+from urllib.parse import urlparse
+#
+# Top level country domains
+#
+countrytld = [
+    "ac", "ad", "ae", "af", "ag", "ai", "al", "am", "an", "ao", "aq", "ar", "as", "at", "au", "aw", "ax", "az",
+    "ba", "bb", "bd", "be", "bf", "bg", "bh", "bi", "bj", "bl", "bm", "bn", "bo", "bq", "br", "bs", "bt", "bv", "bw", "by", "bz",
+    "ca", "cc", "cd", "cf", "cg", "ch", "ci", "ck", "cl", "cm", "cn", "co", "cr", "cu", "cv", "cw", "cx", "cy", "cz",
+    "de", "dj", "dk", "dm", "do", "dz",
+    "ec", "ee", "eg", "er", "es", "et", "eu",
+    "fi", "fj", "fk", "fm", "fo", "fr",
+    "ga", "gb", "gd", "ge", "gf", "gg", "gh", "gi", "gl", "gm", "gn", "gp", "gq", "gr", "gs", "gt", "gu", "gw", "gy",
+    "hk", "hm", "hn", "hr", "ht", "hu", 
+    "id", "ie", "il", "im", "in", "io", "iq", "ir", "is", "it",
+    "je", "jm", "jo", "jp",
+    "ke", "kg", "kh", "ki", "km", "kn", "kp", "kr", "kw", "ky", "kz",
+    "la", "lb", "lc", "li", "lk", "lr", "ls", "lt", "lu", "lv", "ly",
+    "ma", "mc", "md", "me", "mf", "mg", "mh", "mk", "ml", "mm", "mn", "mo", "mp", "mq", "mr", "ms", "mt", "mu", "mv", "mw", "mx", "my", "mz",
+    "na", "nc", "ne", "nf", "ng", "ni", "nl", "no", "np", "nr", "nu", "nz",
+    "om",
+    "pa", "pe", "pf", "pg", "ph", "pk", "pl", "pm", "pn", "pr", "ps", "pt", "pw", "py",
+    "qa",
+    "re", "ro", "rs", "ru", "rw",
+    "sa", "sb", "sc", "sd", "se", "sg", "sh", "si", "sj", "sk", "sl", "sm", "sn", "so", "sr", "ss", "st", "su", "sv", "sx", "sy", "sz",
+    "tc", "td", "tf", "tg", "th", "tj", "tk", "tl", "tm", "tn", "to", "tp", "tr", "tt", "tv", "tw","tz",
+    "ua", "ug", "uk", "um", "us", "uy", "uz",
+    "va", "vc", "ve", "vg", "vi", "vn", "vu",
+    "wf", "ws"
+]
 #
 # Because of the vagaries of how urls are used in trust.txt files it is necessary to normalize them so that they can be matched 
-# appropriately in the database.
+# appropriately in the JournalList ecosystem database.
 # 
-# normalize(url) - Normalize a url to provide just the path in the form "www.domain.com/[path]/" by:
-# 1. Remove the leading "http[s]://" if necessary
-# 2. Add trailing "/" if necessary
-# 3. Convert the domain to lowercase.
-# 4. Remove the trailing "trust.txt" if necessary
-# 
+# normalize (url) - Normalize the input url and return base domain (e.g., journallist.net), subdomain (if any), and subdirectory (if any).
+#
 def normalize (url):
     #
-    # Remove leading protocol, if necessary
+    # Parse the url
     #
-    if (url.startswith("http://")):
-        tmppath1 = url[7:len(url)]
-    elif (url.startswith("https://")):
-        tmppath1 = url[8:len(url)]
+    o = urlparse(url)
+    #
+    # If no scheme is provided, then domain is contained in o.path up to a "/" and subdirectory = o.path from "/" to the remainder, otherwise take them from urlparse results
+    #
+    if o.scheme == "":
+        s = o.path.split("/",1)
+        domain = s[0]
+        if (len(s) > 1):
+            subdir = s[1]
+        else:
+            subdir = ""
     else:
-        tmppath1 = url
+        subdir = o.path
+        domain = o.netloc
     #
-    # Add leading "www." to urlpath, if necessary
+    # If subdirectory is just "/" return null
     #
-    if (tmppath1.startswith("www.")):
-        tmppath2 = tmppath1
+    if subdir == "/":
+        subdir = ""
+    #
+    # Get base domain, typically the last two elements of the netloc, unless top level domain is a country code, in which case it is the last three elements of the netloc
+    #
+    s = domain.split(".")
+    slen = len(s)
+    if (s[slen-1] in countrytld) and (slen > 2) and (s[slen-3] != "www"):
+        dlen = 3
+        domain = s[slen - 3] + "." + s[slen - 2] + "." + s[slen - 1]
     else:
-        tmppath2 = "www." + tmppath1
+        if slen > 1:
+            dlen = 2
+            domain = s[slen - 2] + "." + s[slen - 1]
+        else:
+            dlen = 1
+            domain = s[0]   
     #
-    # Add trailing "/" to urlpath, if necessary
+    domain = domain.lower()
     #
-    if url.endswith("/"):
-        tmppath3 = tmppath2
-    else:
-        tmppath3 = tmppath2 + "/"
+    # Get subdomain if there is one (elements of netloc preceeding base domain)
     #
-    # Split the path into domain and path, convert domain to lowercase.
+    subdom = ""
+    n = slen - dlen
+    if n > 0:
+        i = 0
+        subdom = s[i]
+        while i < n - 1:
+            i = i + 1
+            subdom = subdom + "." + s[i]
     #
-    splitpath = tmppath3.split("/",1)
-    domain = splitpath[0].lower()
-    tmppath4 = domain + "/" + splitpath[1]
-    #
-    # Add or remove trailing "trust.txt[/]" if necessary.
-    #
-    if (tmppath4.endswith("trust.txt/")):
-        urlpath = tmppath4[0:len(tmppath4)-10]
-    elif (tmppath4.endswith("trust.txt")):
-        urlpath = tmppath4[0:len(tmppath4)-9]
-    else:
-        urlpath = tmppath4
-    #
-    # print (url, "normalized to", urlpath)
-    #
-    return urlpath
+    return domain, subdom, subdir
 #
 # fetchurl(url) - Fetches the specified url, catches exceptions, and if successful checks if the content is plaintext. 
 # Returns success (True or False), exception (True or False), the request response, and error string.
@@ -156,28 +191,28 @@ def fetchurl(url):
     #
     return success, exception, r, error
 #
-# write_error (http, srcpath, attr, refpath, error, errfile) - Write the entry into the error .csv file errfile for the specified srcpath, attr, 
+# write_error (srcurl, attr, refurl, error, errfile) - Write the entry into the error .csv file errfile for the specified srcpath, attr, 
 # refpath, and error message.
 #
-def write_error (http, srcpath, attr, refpath, error, errfile):
-    errfile.write (http + srcpath + "," + attr + "," + http + refpath + "," + error + "\n")
+def write_error (srcurl, attr, refurl, error, errfile):
+    errfile.write (srcurl + "," + attr + "," + refurl + "," + error + "\n")
 #
-# write_csv (http, srcpath, attr, refpath, csvfile) - Write the entry into the .csv file csvfile for the specified srcpath, attr, and refpath.
+# write_csv (srcurl, attr, refurl, csvfile) - Write the entry into the .csv file csvfile for the specified srcpath, attr, and refpath.
 #
-def write_csv (http, srcpath, attr, refpath, csvfile):
-    csvfile.write (http + srcpath + "," + attr + "," + http + refpath + "\n")
+def write_csv (srcurl, attr, refurl, csvfile):
+    csvfile.write (srcurl + "," + attr + "," + refurl + "\n")
 #
-# write_csv_asym (http, srcpath, attr, refpath, csvfile) - Write the asymmetric attribute entry (don't prepend http) into the .csv file csvfile for the specified 
+# write_csv_asym (srcurl, attr, refurl, csvfile) - Write the asymmetric attribute entry (don't prepend http) into the .csv file csvfile for the specified 
 # srcpath, attr, and refpath.
 #
-def write_csv_asym (http, srcpath, attr, refpath, csvfile):
-    csvfile.write (http + srcpath + "," + attr + "," + refpath + "\n")
+def write_csv_asym (srcurl, attr, refurl, csvfile):
+    csvfile.write (srcurl + "," + attr + "," + refurl + "\n")
 #
-# fetchtrust(srcpath,attr,refpath,dirname,filename,csvfile,logfile,errfile) - Fetch a trust.txt file and catch exceptions. If there are no exceptions
+# fetchtrust (srcdomain,attr,refdomain,dirname,filename,csvfile,logfile,errfile) - Fetch a trust.txt file and catch exceptions. If there are no exceptions
 # write the contents to the specified directory and filename. Check if the content is plaintext and return success=True. Otherwise, write
 # a blank line to the specified directory and filename and return success=False.
 #
-def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, errfile):
+def fetchtrust (srcdomain, attr, refdomain, dirname, filename, redirfile, logfile, errfile):
     #
     # Set list of domain registrars to check for expired domains.
     #
@@ -185,47 +220,26 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
     #
     # Set source and referenced urls.
     #
-    http = "https://"
-    srcurl = http + srcpath + "trust.txt"
-    refurl = http + refpath + "trust.txt" 
-    path1 = ""
-    path2 = ""
+    srcurl = "https://www." + srcdomain + "/trust.txt"
+    refurl = "https://www." + refdomain + "/trust.txt"
     #
     # Log fetching the referenced url path
     #
     logfile.write("Fetching: " + refurl + " referenced from " + srcurl + " with attribute \"" + attr + "\"\n")
     #
-    # Try using "http" and dropping the "www."
+    # Try using "http"
     #
-    http = "http://"
-    refurl = http + refpath[4:len(refpath)] + "trust.txt"
+    refurl = "http://" + refdomain + "/trust.txt"
     logfile.write("Trying: " + refurl + "\n")
     #
     success, exception, r, error = fetchurl (refurl)
     if exception or r.status_code == 404:
         #
-        # Try using "http", dropping the "www.", and adding "/.well-known"
+        # Try using "http" and adding "/.well-known"
         #
-        refurl = http + refpath[4:len(refpath)] + ".well-known/trust.txt"
+        refurl = "http://" + refdomain + "/.well-known/trust.txt"
         logfile.write("Trying: " + refurl + "\n")
         success, exception, r, error = fetchurl (refurl)
-        #
-        #if exception:
-            #
-            # Try using "https"
-            #
-        #    http = "https://"
-        #    refurl = http + refpath + "trust.txt"
-        #    logfile.write("Trying: " + refurl + "\n")
-        #    success, exception, r, error = fetchurl (refurl)
-            #
-        #    if exception:
-                #
-                # Try using "https" and dropping the "www."
-                #
-        #        refurl = http + refpath[4:len(refpath)] + "trust.txt"
-        #        logfile.write("Trying: " + refurl + "\n")
-        #        success, exception, r, error = fetchurl (refurl)
     #
     # Fall through to here after trying different url forms
     #
@@ -241,14 +255,14 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
         # If the HTTP status code is not OK (not 200), then write to error file and log error.
         #
         if r.status_code != 200:
-            write_error ("https://", srcpath, attr, refpath, "HTTP Status Code: " + str(r.status_code), errfile)
+            write_error (srcurl, attr, refurl, "HTTP Status Code: " + str(r.status_code), errfile)
             logfile.write ("HTTP Status Code: " + str(r.status_code) + "\n")
             success = False
         else:
             #
             # Log the content type.
             #
-            logfile.write ("https://" + refpath + " content type: " + r.headers['Content-Type'] + "\n")
+            logfile.write (refurl + " content type: " + r.headers['Content-Type'] + "\n")
             #
             # Check if content type is plaintext.
             #
@@ -257,7 +271,7 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
             # If the content is not plaintext, write to error file and log error.
             #
             if not success:
-                write_error ("https://", srcpath, attr, refpath, "Content type: " + r.headers['Content-Type'], errfile)
+                write_error (srcurl, attr, refurl, "Content type: " + r.headers['Content-Type'], errfile)
         #
         # Log the status code
         #
@@ -265,10 +279,10 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
         #
         # Check if redirected to another domain by checking that normalized versions of the refurl and r.url do not match.
         #
-        path1 = normalize (refurl)
-        path2 = normalize (r.url)
-        # logfile.write("path1 = " + path1 + " path2 = " + path2 + "\n")
-        if (path1 != path2):
+        domain1, subdom1, subdir1 = normalize (refurl)
+        domain2, subdom2, subdir2 = normalize (r.url)
+        #
+        if (domain1 != domain2):
             #
             # Log redirect and write to redirect file.
             #
@@ -277,15 +291,13 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
             #
             # Check if redirect domain is a domain registrar, set success to False and set error message.
             #
-            splitpath = path2.split("/",2)
-            domain = splitpath[0].lower()
-            if (domain in registrars):
+            if (domain2 in registrars):
                 success = False
                 error = "HTTP GET domain registration expired redirects to " + r.url
             #
             # Check if the fetch redirects to an existing file, if so log it has already been fetched and set success to False so that contents are not processed again.
             #
-            rfilename = path2.replace("/", "-") + "trust.txt"
+            rfilename = "www." + domain2 + "-trust.txt"
             if os.path.isfile(dirname + "/" + rfilename):
                 #
                 # Log url as previously fetched
@@ -296,7 +308,7 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
         #
         # Write a blank trust.txt file, log it, and write to error file.
         #
-        write_error ("https://", srcpath, attr, refpath, error.replace(",",""), errfile)
+        write_error (srcurl, attr, refurl, error.replace(",",""), errfile)
         logfile.write ("HTTP GET error: " + error + "\n")
         logfile.write ("Writing blank trust.txt file: " + dirname + "/" + filename + "\n")
         trustfile = open(dirname + "/" + filename,"w")
@@ -305,101 +317,152 @@ def fetchtrust (srcpath, attr, refpath, dirname, filename, redirfile, logfile, e
     #
     return success, r
 #
-# process(srcpath, attribute, refpath, dirname, csvfile, logfile, errfile) - Process the given refpath by retrieving the trust.txt 
-# file from the given refpath, write it to the given directory & filename, output the tuple (srcurl,attr,refurl) to the given csvfile, 
+# process(srcdomain, attribute, refdomain, dirname, csvfile, logfile, errfile) - Process the given refdomain by retrieving the trust.txt 
+# file from the given redomain, write it to the given directory & filename, output the tuple [srcurl,attr,refurl] to the given csvfile, 
 # log process to the given logfile, and errors to the given errfile.
 #
-def process (srcpath, attribute, refpath, dirname, csvfile, redirfile, logfile, errfile):
+def process (srcdomain, attribute, refdomain, dirname, csvfile, redirfile, logfile, errfile):
     #
     # Specify symmetric and asymmetric attributes, http protocol, normalize refpath, and set its local trust.txt filename.
     #
     symattr = "member,belongto,control,controlledby,vendor,customer"
     asymattr = "social,contact,disclosure"
-    http = "https://"
-    refurl = http + refpath + "trust.txt"
-    filename = refpath.replace("/", "-") + "trust.txt"
-    attrcount = 0
     #
-    # Log beginning of processing the url
+    # Only process the refdomain if the attribute is a symmetric attribute and the srcdomain is not the same as the refdomain
     #
-    logfile.write ("BEGIN: " + refurl + "\n")
-    #
-    # If the specified file doesn't already exist, fetch the url/trust.txt file and parse the contents.
-    #
-    if not os.path.isfile(dirname + "/" + filename):
+    if (attribute == "self") or ((attribute in symattr) and (srcdomain != refdomain)):
         #
-        # Fetch the trust.txt file.
+        # Set srcurl and refurl to standard format (https://www.domain/, e.g., https://www.journallist.net/)
         #
-        success, r = fetchtrust (srcpath, attribute, refpath, dirname, filename, redirfile, logfile, errfile)
+        srcurl = "https://www." + srcdomain + "/"
+        refurl = "https://www." + refdomain + "/"
         #
-        if (success):
+        # Set filename to standard format (www.domain-trust.txt, e.g., www.journallist.net-trust.txt)
+        #
+        filename = "www." + refdomain + "-trust.txt"
+        #
+        # Set attribute count to zero
+        #
+        attrcount = 0
+        #
+        # Log beginning of processing the url
+        #
+        logfile.write ("BEGIN: " + refurl + "trust.txt\n")
+        #
+        # If the specified file doesn't already exist, fetch the url/trust.txt file and parse the contents.
+        #
+        if not os.path.isfile(dirname + "/" + filename):
             #
-            # If fetch was successful, process each line in the response.
+            # Fetch the trust.txt file.
             #
-            lines = r.text.splitlines()
-            linenum = 0
-            for line in lines:
-                linenum += 1
+            success, r = fetchtrust (srcdomain, attribute, refdomain, dirname, filename, redirfile, logfile, errfile)
+            #
+            if (success):
                 #
-                # Remove leading and trailing white space, and remove any non-ASCII chacters (using encode to create bytes object and decode to
-                # convert bytes object back to str), remove any null characters "\00", or tab "\t", or spaces.
+                # If fetch was successful, process each line in the response.
                 #
-                bytesline = line.strip().encode("ascii","ignore")
-                tmp1line = bytesline.decode("ascii","ignore")
-                tmpline = tmp1line.replace("\00","")
-                tmpline1 = tmpline.replace("\t","")
-                tmpline = tmpline1.replace(" ","")
-                #
-                # Skip this line if it is a comment line (begins with "#") or is an empty line
-                #
-                if tmpline.startswith("#") or tmpline == "":
-                    continue
-                #
-                # Get attribute and referenced url. Ignore attributes with null references, e.g. "control="
-                #
-                attr = tmpline.split("=",2)
-                if (len(attr) == 2) and (attr[1] != ""):
+                lines = r.text.splitlines()
+                linenum = 0
+                for line in lines:
+                    linenum += 1
                     #
-                    # If a symmetric attribute then normalize the referenced url, otherwise it should remain unmodified.
+                    # Remove leading and trailing white space, and remove any non-ASCII chacters (using encode to create bytes object and decode to
+                    # convert bytes object back to str), remove any null characters "\00", or tab "\t", or spaces.
                     #
-                    if (attr[0] in symattr):
-                        attrcount += 1
-                        path = normalize(attr[1])
-                        write_csv (http, refpath, attr[0], path, csvfile)
-                    elif (attr[0] in asymattr):
-                        attrcount += 1
-                        path = attr[1]
-                        write_csv_asym (http, refpath, attr[0], path, csvfile)
-                    else:
-                        write_error (http, refpath, attr[0], path, "Invalid attribute" + attr[0] + "at line " + str(linenum), errfile)
-                        logfile.write ("Invalid attribute" + attr[0] + "at line " + str(linenum) + "\n")
+                    bytesline = line.strip().encode("ascii","ignore")
+                    tmp1line = bytesline.decode("ascii","ignore")
+                    tmpline = tmp1line.replace("\00","")
+                    tmpline1 = tmpline.replace("\t","")
+                    tmpline = tmpline1.replace(" ","")
                     #
-                    # If attribute is a symmetric one, process the referenced url
+                    # Skip this line if it is a comment line (begins with "#") or is an empty line
                     #
-                    if attr[0] in symattr:
+                    if tmpline.startswith("#") or tmpline == "":
+                        continue
+                    #
+                    # Get attribute and referenced url. Ignore attributes with null references, e.g. "control="
+                    #
+                    attr = tmpline.split("=",2)
+                    if (len(attr) == 2) and (attr[1] != ""):
                         #
-                        # Normalize and recursively process the referenced url.
+                        # If a symmetric attribute then normalize the referenced url, otherwise the reference url should remain unmodified.
                         #
-                        process (refpath, attr[0], path, dirname, csvfile, redirfile, logfile, errfile)
+                        if (attr[0] in symattr):
+                            attrcount += 1
+                            #
+                            # Normalize the referenced url
+                            #
+                            domain, subdomain, subdir = normalize(attr[1])
+                            #
+                            # If subdomain is empty, begin url with "www", if subdomain begins with "www" then use subdomain, else preface subdomain with "www"
+                            #
+                            if subdomain == "":
+                                url = "https://www"
+                            elif subdomain.startswith("www"):
+                                url = "https://" + subdomain
+                            else:
+                                url = "https://www." + subdomain
+                            #
+                            # Add domain to url
+                            #
+                            url = url + "." + domain
+                            #
+                            # Add subdirectory if not empty
+                            #
+                            if subdir != "":
+                                if subdir.startswith("/"):
+                                    url = url + subdir
+                                else:
+                                    url = url + "/" + subdir
+                            #
+                            # Add trailing "/" if not present
+                            #
+                            if not url.endswith("/"):
+                                url = url + "/"
+                            #
+                            # Write the tuple [srcrul, attribute, refurl] in standard format to the .csv file
+                            #
+                            write_csv (refurl, attr[0], url , csvfile)
+                        elif (attr[0] in asymattr):
+                            attrcount += 1
+                            #
+                            # Write the tuple [srcrul, attribute, refurl] in standard format to the .csv file
+                            #
+                            url = attr[1]
+                            write_csv_asym (refurl, attr[0], url, csvfile)
+                        else:
+                            #
+                            # Write invalid attribute error to log and error files
+                            #
+                            write_error (refurl, attr[0], url, "Invalid attribute" + attr[0] + "at line " + str(linenum), errfile)
+                            logfile.write ("Invalid attribute" + attr[0] + "at line " + str(linenum) + "\n")
+                        #
+                        # If attribute is a symmetric one, process the referenced domain
+                        #
+                        if attr[0] in symattr:
+                            #
+                            # Recursively process the referenced domain, remember refdomain is now the srcdomain
+                            #
+                            process (refdomain, attr[0], domain, dirname, csvfile, redirfile, logfile, errfile)
+            else:
+                # Set attrcount to -1 (not zero), prevents no attributes error from also being logged
+                #
+                attrcount = -1        
+            #
+            # If no attributes were found, log a no attributes error
+            #
+            if (attrcount == 0):
+                write_error (srcurl, attribute, refurl, refurl + "trust.txt no attributes found", errfile)
+                logfile.write("No attributes found in: " + refurl + "\n")
+            #
+            # Log completion of processing the url and number of attributes found
+            #
+            logfile.write ("END: " + refurl + "trust.txt, number of attributes found = " + str(attrcount) + "\n")
         else:
-            # Set attrcount to -1 (not zero), prevents no attributes error from also being logged
             #
-            attrcount = -1        
-        #
-        # If no attributes were found, log a no attributes error
-        #
-        if (attrcount == 0):
-            write_error ("https://", srcpath, attribute, refpath, refurl + " no attributes found", errfile)
-            logfile.write("No attributes found in: " + refurl + "\n")
-        #
-        # Log completion of processing the url and number of attributes found
-        #
-        logfile.write ("END: " + refurl + ", number of attributes found = " + str(attrcount) + "\n")
-    else:
-        #
-        # Log url as previously fetched
-        #
-        logfile.write ("END: " + refurl + " previously fetched\n")
+            # Log url as previously fetched
+            #
+            logfile.write ("END: " + refurl + "trust.txt previously fetched\n")
     return
 #
 # Main program
@@ -413,11 +476,11 @@ if not sys.warnoptions:
 # Set root_url
 #
 if len(sys.argv) > 1:
-    rootpath = sys.argv[1]
+    rootdomain = sys.argv[1]
 else:
-    rootpath = "www.journallist.net/"
+    rootdomain = "journallist.net"
 #
-http = "https://"
+rooturl = "https://" + rootdomain
 #
 # Create directory name to contain today's webcrawl "Webcrawl-YYYY-MM-DD". If bail if it already
 # exists
@@ -456,11 +519,11 @@ if (not os.path.isdir(dirname)):
     #
     # Normalize the root url
     #
-    path = normalize(rootpath)
+    path = normalize(rooturl)
     #
     # Process the root url
     #
-    retcount = process(path, "self", path, dirname, csvfile, redirfile, logfile, errfile)
+    retcount = process(rootdomain, "self", rootdomain, dirname, csvfile, redirfile, logfile, errfile)
     #
     # If well-known.dev resource list obtained from (https://well-known.dev/?q=resource%3Atrust.txt+is_base_domain%3Atrue) exists process each entry.
     # Each entry is a tuple of [rank, domain, resource, status, scan_dt, simhash]
@@ -480,8 +543,8 @@ if (not os.path.isdir(dirname)):
         for line in lines:
             tuple = line.split(",",5)
             if tuple[0] != "rank":
-                path = normalize(tuple[1])
-                retcount = process(path, "self", path, dirname, csvfile, redirfile, logfile, errfile)
+                domain, subdomain, subdir = normalize(tuple[1])
+                retcount = process(domain, "self", domain, dirname, csvfile, redirfile, logfile, errfile)
     #
     # Log ending time.
     #
