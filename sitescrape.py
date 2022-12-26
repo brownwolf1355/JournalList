@@ -31,6 +31,7 @@ from bs4 import BeautifulSoup
 import argparse
 from html.parser import HTMLParser
 from urllib.parse import unquote
+from urllib.parse import urlparse
 # 
 # Define global variables
 #
@@ -602,15 +603,13 @@ def findcopyright(text):
 #
 def trustfilename(url,dirname):
     #
-    # Create output trust.txt filename from url
+    # Create output trust.txt filename from url "www.basedomain-trust.txt", e.g., "www.journallist.net-trust.txt"
     #
-    index = url.find("://")
-    domain = url[index+3:len(url)]
-    filename = domain.replace("/","-")
-    if (filename.endswith("-")):
-        filename = dirname + "/" + filename + "trust.txt"
-    else:
-        filename = dirname + "/" + filename + "-trust.txt"
+    o = urlparse(url)
+    if o.scheme == "":
+        s = o.path.split("/",1)
+        domain = s[0]
+    filename = dirname + "/www." + domain + "-trust.txt"
     return (filename)
 #
 # htmlfilenam(url) - generate an filename from url
@@ -619,13 +618,11 @@ def htmlfilename(url,dirname):
     #
     # Create output HTML filename from url
     #
-    index = url.find("://")
-    domain = url[index+3:len(url)]
-    filename = domain.replace("/","-")
-    if (filename.endswith("-")):
-        filename = dirname + "/" + filename[0:len(filename)-1] + ".html"
-    else:
-        filename = dirname + "/" + filename + ".html"
+    o = urlparse(url)
+    if o.scheme == "":
+        s = o.path.split("/",1)
+        domain = s[0]
+    filename = dirname + "/www." + domain + ".html"
     return (filename)
 #
 # readurl(url) - Reads the content of the specified url
