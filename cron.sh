@@ -30,11 +30,18 @@ then
     # If a resources.csv file exists (download from https://well-known.dev/?q=resource%3Atrust.txt+is_base_domain%3Atrue#results)
     # copy it to the Webcrawl directory to preserve the results for that day.
     #
-    if [ -f resources.csv]
+    if [ -f resources.csv ]
     then
         cp resources.csv $DIRNAME/$DIRNAME-resources.csv
     fi
 fi
+#
+# Remove duplicate entries. First remove header line, then pipe to sort and uniq, next reinsert header line, and follow it with the sorted-unique list of entries.
+#
+tail -n +2 $DIRNAME/$DIRNAME.csv | sort | uniq > $DIRNAME/temp
+echo "srcurl,attr,refurl" > $DIRNAME/$DIRNAME.csv
+cat $DIRNAME/temp >> $DIRNAME/$DIRNAME.csv
+rm $DIRNAME/temp
 #
 # Process the results of the webcrawler to generate the symmetric links, association, publisher, and vendor .csv files.
 #
@@ -57,8 +64,8 @@ echo ".output $DIRNAME/$DIRNAME-control_dups.csv" >> temp.sql
 echo "select distinct * from control_dups;" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-controlledby_dups.csv" >> temp.sql
 echo "select distinct * from controlledby_dups;" >> temp.sql
-echo ".output $DIRNAME/$DIRNAME-membership.csv" >> temp.sql
-echo "select distinct * from membership_total order by refurl;" >> temp.sql
+echo ".output $DIRNAME/$DIRNAME-missctrlby.csv" >> temp.sql
+echo "select * from missctrlby_list;" >> temp.sql
 echo ".output $DIRNAME/$DIRNAME-stats.csv" >> temp.sql
 echo "select * from stats;" >> temp.sql
 echo ".quit" >> temp.sql
