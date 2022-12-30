@@ -394,14 +394,14 @@ def process (srcdomain, attribute, refdomain, dirname, csvfile, redirfile, logfi
                             #
                             domain, subdomain, subdir = normalize(attr[1])
                             #
-                            # If subdomain is empty, begin url with "www", if subdomain begins with "www" then use subdomain, else preface subdomain with "www"
+                            # If subdomain is empty, begin url with "www", if subdomain begins with "www" then use subdomain, else use subdomain
                             #
                             if subdomain == "":
                                 url = "https://www"
                             elif subdomain.startswith("www"):
                                 url = "https://" + subdomain
                             else:
-                                url = "https://www." + subdomain
+                                url = "https://" + subdomain
                             #
                             # Add domain to url
                             #
@@ -544,6 +544,8 @@ if (not os.path.isdir(dirname)):
             tuple = line.split(",",5)
             if tuple[0] != "rank":
                 domain, subdomain, subdir = normalize(tuple[1])
+                if (subdomain != ""):
+                    domain = subdomain + "." + domain
                 retcount = process(domain, "self", domain, dirname, csvfile, redirfile, logfile, errfile)
     #
     # Log ending time.
