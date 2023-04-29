@@ -47,6 +47,14 @@ import time
 import requests
 from urllib.parse import urlparse
 #
+# Skip any well-known resources that begin with any of the following strings
+#
+well_known_skip =[
+    "assets.",
+    "m.",
+    "storyconsole."
+]
+#
 # Top level country domains
 #
 countrytld = [
@@ -148,6 +156,10 @@ def fetchurl(url):
     # Set User Agent to "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:93.0) Gecko/20100101 Firefox/93.0" to avoid 403 errors on some websites.
     #
     headers = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:93.0) Gecko/20100101 Firefox/93.0'}
+    #
+    # Set User Agent to "Mozilla/5.0 (compatible; JournalListBot/0.1; +https://journallist.net/JournalListBot.html)" to avoid 403 errors on some websites.
+    #
+    # headers = {'user-agent': 'Mozilla/5.0 (compatible; JournalListBot/0.1; +https://journallist.net/JournalListBot.html)'}
     #
     # Try fetcing the trust.txt file, catch relevant exceptions, if there are no exceptions
     # write the response text to the trust.txt file and check if the content is plaintext.
@@ -323,7 +335,7 @@ def fetchtrust (srcdomain, attr, refdomain, dirname, filename, redirfile, logfil
 #
 def process (srcdomain, attribute, refdomain, dirname, csvfile, redirfile, logfile, errfile):
     #
-    # Specify symmetric and asymmetric attributes, http protocol, normalize refpath, and set its local trust.txt filename.
+    # Specify symmetric and asymmetric attributes
     #
     symattr = "member,belongto,control,controlledby,vendor,customer"
     asymattr = "social,contact,disclosure"
@@ -546,7 +558,16 @@ if (not os.path.isdir(dirname)):
                 domain, subdomain, subdir = normalize(tuple[1])
                 if (subdomain != ""):
                     domain = subdomain + "." + domain
-                retcount = process(domain, "self", domain, dirname, csvfile, redirfile, logfile, errfile)
+                #
+                # Check if subdomain matches one of the subdomains that shoud be skipped
+                #
+                found = False
+                for i in range(0,len(well_known_skip)):
+                    if (subdomain == well_known_skip[i]):
+                        found = True
+                #
+                if not found:
+                    retcount = process(domain, "self", domain, dirname, csvfile, redirfile, logfile, errfile)
     #
     # Log ending time.
     #
