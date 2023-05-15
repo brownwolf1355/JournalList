@@ -50,9 +50,9 @@ from urllib.parse import urlparse
 # Skip any well-known resources that begin with any of the following strings
 #
 well_known_skip =[
-    "assets.",
-    "m.",
-    "storyconsole."
+    "assets",
+    "m",
+    "storyconsole"
 ]
 #
 # Top level country domains
@@ -535,7 +535,7 @@ if (not os.path.isdir(dirname)):
     #
     # Process the root url
     #
-    retcount = process(rootdomain, "self", rootdomain, dirname, csvfile, redirfile, logfile, errfile)
+    # retcount = process(rootdomain, "self", rootdomain, dirname, csvfile, redirfile, logfile, errfile)
     #
     # If well-known.dev resource list obtained from (https://well-known.dev/?q=resource%3Atrust.txt+is_base_domain%3Atrue) exists process each entry.
     # Each entry is a tuple of [rank, domain, resource, status, scan_dt, simhash]
