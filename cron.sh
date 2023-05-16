@@ -25,15 +25,21 @@ fi
 #
 if [ ! -d $DIRNAME ]
 then
+    #
+    # Generage a resources.csv from all of the historic resources.csv file (downloaded from https://well-known.dev/?q=resource%3Atrust.txt#results) 
+    # and copy it to the Webcrawl directory to preserve the results for that day.
+    #
+    echo "rank,domain,resource,status,scanned,simhash" > temp.csv
+    cat resources.csv Webcrawl-*/Webcrawl-*-resources.csv | grep -v "rank,domain,resource,status," | sed -e "s/^[0-9]*,/,/" -e "s/,202.*$/,,/" | sort | uniq >> temp.csv
+    mv temp.csv resources.csv
+    #
+    # Run the webcrawler
+    #
     python3.10 webcrawler.py
     #
-    # If a resources.csv file exists (download from https://well-known.dev/?q=resource%3Atrust.txt+is_base_domain%3Atrue#results)
-    # copy it to the Webcrawl directory to preserve the results for that day.
+    # Save resources.csv
     #
-    if [ -f resources.csv ]
-    then
-        cp resources.csv $DIRNAME/$DIRNAME-resources.csv
-    fi
+    mv resources.csv $DIRNAME/$DIRNAME-resources.csv
 fi
 #
 # Remove duplicate entries. First remove header line, then pipe to sort and uniq, next reinsert header line, and follow it with the sorted-unique list of entries.
