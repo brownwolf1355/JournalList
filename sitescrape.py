@@ -1,8 +1,8 @@
-#!/usr/local/bin/python3.10
+#!/usr/local/bin/python3.12
 #
 # JournalList.net website scraper to scan all sites in a list and find all social, contact, and vendor links.
 #
-# usage: sitescrape.py [-h] [-v] [-s] [-d DIRNAME] [-w WEBCRAWL] url_or_filename
+# usage: sitescrape.py [-h] [-v] [-s] [-r] [-j] [-c URL] [-d DIRNAME] [-w WEBCRAWL] url_or_filenam
 #
 # Scrapes websites to discover: 'name', 'contact', 'social', and 'copyright' and writes trust.txt file. Optionally, checks webcrawler ouptut for additional 'belongto' entries.
 #
@@ -10,13 +10,17 @@
 #   url_or_filename       url to scrape or name of a .csv file containing a list of urls to scape
 #
 # options:
-#   -h, --help            show this help message and exit
-#   -v, --verbose         increase output verbosity
-#   -s, --save            save HTML from the website
-#   -j, -J                force trust.txt files to include "belongto=https://www.journallist.net/"
-#   -c URL                force trust.txt files to include "controlledby=URL"
-#   -d DIRNAME            name of directory to write output, defualt to current directory
-#   -w WEBCRAWL           name of webcrawler output directory to check for belongto entries
+#  -h, --help            show this help message and exit
+#  -v, --verbose         increase output verbosity
+#  -s, --save            save HTML from the website
+#  -r, --redo            redo generation of trust.txt files from HTML previously saved with -s option
+#  -j, --forcejl         force belongto=https://www.journallist.net/
+#  -c URL, --url URL     force controlledby=URL
+#  -b URL, --url URL     force belongto=URL
+#  -d DIRNAME,--dirname DIRNAME
+#                        name of directory to write output, defualt to current directory
+#  -w WEBCRAWL, --webcrawl WEBCRAWL
+#                        name of webcrawler output directory to check for belongto entries
 #
 # Copyright (c) 2021 Brown Wolf Consulting LLC
 # License: Creative Commons Attribution-NonCommercial-ShareAlike license. See: https://creativecommons.org/
@@ -73,6 +77,7 @@ registrars = [
 #
 vendors = [
     "887media.com",
+    "bloxdigital.com",
     "bulletlink.com",
     "creativecirclemedia.com",
     "creativecirclemedia.com",
@@ -101,10 +106,12 @@ chains = {
     "Advance Local Media":"https://www.advancelocal.com/",
     "Allen Media Broadcasting":"https://allenmediabroadcasting.com/",
     "Alpha Media":"https://www.alphamediausa.com/",
+    "Annex Business Media":"https://www.annexbusinessmedia.com/",
     "C&S Media":"https://csmediatexas.com/",
     "CherryRoad Media":"https://cherryroad-media.com/",
     "Colorado Community Media":"https://coloradocommunitymedia.com/",
     "Cumulus Media":"https://www.cumulusmedia.com/",
+    "Dow Jones & Company":"https://www.dowjones.com/",
     "Ellington":"http://www.connectionnewspapers.com/",
     "Gannett":"https://www.gannett.com/",
     "Gray Television":"https://www.gray.tv/",
@@ -119,6 +126,7 @@ chains = {
     "Penske Media Corporation":"https://pmc.com/",
     "Postmedia Network":"https://www.postmedia.com/",
     "Scripps Media":"https://scripps.com/",
+    "Sinclair Broadcast Group":"https://sbgi.net/",
     "Swift Communications":"https://www.swiftcom.com/",
     "Trusted Media Brands":"https://www.trustedmediabrands.com/",
     "Vox Media":"https://corp.voxmedia.com/"
@@ -128,10 +136,16 @@ chains = {
 #
 socials = [
     "facebook.com",
+    "lipboard.com",
     "instagram.com",
     "linkedin.com",
+    "newsbreak.com",
     "pinterest.com",
+    "post.news",
+    "threads.net",
     "twitter.com",
+    "weibo.com",
+    "x.com",
     "youtube.com"
     ]
 #
@@ -203,7 +217,7 @@ embedded = [
 #
 # Define home page variants (ignoring case) for removal from site name
 #
-homepage = ["home page [-|\|]", "home page$", "homepage [-|\|]", "homepage$", "home [-|\|]", "[-|\|] home$"]
+homepage = ["home page [-|\\|]", "home page$", "homepage [-|\\|]", "homepage$", "home [-|\\|]", "[-|\\|] home$"]
 #
 # Define various forms of "contact" in contact urls
 #
@@ -330,7 +344,7 @@ def write_trust_txt (name, website, contact, links, vendor, copyright, controls,
     #
     # If there is a controlling site, write the "controlledby="" entry
     #
-    if cntrldby != "":
+    if cntrldby != "" and cntrldby != "None":
         output.write (contolledby.replace("NAME",name))
         output.write ("controlledby=" + cntrldby + "\n#\n")
     #
@@ -508,7 +522,7 @@ def findtel(text):
     if len(list) !=0:
         phone = "tel:" + list[0].strip()
     else:
-        list = re.findall("\([0-9][0-9][0-9]\) [0-9][0-9][0-9]-[0-9][0-9][0-9][0-9]",text)
+        list = re.findall("\\([0-9][0-9][0-9]\\) [0-9][0-9][0-9]-[0-9][0-9][0-9][0-9]",text)
         if len(list) !=0:
             phone = "tel:" + list[0].strip()
         else:
@@ -546,7 +560,7 @@ def findcopyright(text):
     #
     text = re.sub(re.compile("[¬|†|\n|\r|]")," ",text)
     text = re.sub(re.compile("<!--[^-]*-->"),"",text)
-    text = re.sub(re.compile("/\* [^\*]*\*/"),"",text)
+    text = re.sub(re.compile("/\\* [^\\*]*\\*/"),"",text)
     text = re.sub(re.compile("<script>[^>]*</script>"),"",text)
     text = re.sub(re.compile("<a [^>]*>"),"",text)
     #
@@ -586,7 +600,7 @@ def findcopyright(text):
                 #
                 copyright = copyright[1:len(copyright)-1]
                 copyright = copyright.strip()
-                copyright = re.sub("\s+"," ",copyright)
+                copyright = re.sub("\\s+"," ",copyright)
                 #
                 break
             else:
@@ -609,7 +623,12 @@ def trustfilename(url,dirname):
     if o.scheme == "":
         s = o.path.split("/",1)
         domain = s[0]
-    filename = dirname + "/www." + domain + "-trust.txt"
+    else:
+        domain = o.netloc
+    if domain.startswith("www."):
+        filename = dirname + "/" + domain + "-trust.txt"
+    else:
+        filename = dirname + "/www." + domain + "-trust.txt"
     return (filename)
 #
 # htmlfilenam(url) - generate an filename from url
@@ -622,7 +641,12 @@ def htmlfilename(url,dirname):
     if o.scheme == "":
         s = o.path.split("/",1)
         domain = s[0]
-    filename = dirname + "/www." + domain + ".html"
+    else:
+        domain = o.netloc
+    if domain.startswith("www."):
+        filename = dirname + "/" + domain + ".html"
+    else:
+        filename = dirname + "/www." + domain + ".html"
     return (filename)
 #
 # readurl(url) - Reads the content of the specified url
@@ -695,7 +719,7 @@ def process (url,dirname):
         #
         skip = False
         #
-        # Remove text after "?" or "#" from returned url
+        # Remove text after "?" or "#" or ":443" from returned url
         #
         index = rurl.find("?")
         if index > 0:
@@ -703,6 +727,9 @@ def process (url,dirname):
         index = rurl.find("#")
         if index > 0:
             rurl = rurl[0:index-1]
+        index = rurl.find(":443")
+        if index > 0:
+            rurl = rurl[0:index]
         #
         # Save file if -s option used
         #
@@ -867,7 +894,12 @@ def chkecosys (url, ecosys):
     controlledby = ""
     members = []
     belongtos = []
-    domain = url[url.find("://")+3:len(url)]
+    o = urlparse(url)
+    if o.scheme == "":
+        s = o.path.split("/",1)
+        domain = s[0]
+    else:
+        domain = o.netloc
     found = False
     #
     if verbose:
@@ -909,6 +941,7 @@ def chkecosys (url, ecosys):
         # Check if url is the refurl in a member entry in the ecosystem, if so append the srcurl to the belongtos list if not already present
         #
         if refurl.find(domain) > 0 and attr == "member" and srcurl not in belongtos:
+            found = True
             belongtos.append(srcurl)
         #
     if verbose:
@@ -941,7 +974,8 @@ parser.add_argument("-v", "--verbose", help="increase output verbosity", action=
 parser.add_argument("-s", "--save", help="save HTML from the website", action="store_true")
 parser.add_argument("-r", "--redo", help="redo generation of trust.txt files from HTML previously saved with -s option", action="store_true")
 parser.add_argument("-j", "--forcejl", help="force belongto=https://www.journallist.net/", action="store_true")
-parser.add_argument("-c", "--url", help="force controlledby=URL", type=str, action="store")
+parser.add_argument("-c", "--curl", help="force controlledby=CURL", type=str, action="store")
+parser.add_argument("-b", "--burl", help="force belongto=BURL", type=str, action="store")
 parser.add_argument("-d", "--dirname", help="name of directory to write output, defualt to current directory", type=str, action="store")
 parser.add_argument("-w", "--webcrawl", help="name of webcrawler output directory to check for belongto entries", type=str, action="store")
 parser.add_argument("url_or_filename", help="url to scrape or name of a .csv file containing a list of urls to scape", type=str, action="store")
@@ -957,7 +991,8 @@ if redo:
 else:
     save = args.save
 forcejl = args.forcejl
-controlledby = str(args.url)
+controlledby = str(args.curl)
+belongto = str(args.burl)
 dirname = str(args.dirname)
 webcrawl = str(args.webcrawl)
 url_or_filename = str(args.url_or_filename)
@@ -1081,32 +1116,39 @@ for url in lines:
                 # 
                 # If found in ecosystem check, choose the ecosystem values if present
                 #
-                if ecocontact != "":
-                    contact = ecocontact
-                if ecovendor != "":
-                    vendor = ecovendor
-                if len(ecolinks) != 0:
-                    links = ecolinks
-                if len(ecocontrols) != 0:
-                    controls = ecocontrols
-                if ecocntrldby != "":
-                    cntrldby = ecocntrldby
-                if len(ecomembers) != 0:
-                    members = ecomembers
-                if len(ecobelongtos) != 0:
-                    belongtos = ecobelongtos
+                if (found):
+                    if ecocontact != "":
+                        contact = ecocontact
+                    if ecovendor != "":
+                        vendor = ecovendor
+                    if len(ecolinks) != 0:
+                        links = ecolinks
+                    if len(ecocontrols) != 0:
+                        controls = ecocontrols
+                    if ecocntrldby != "":
+                        cntrldby = ecocntrldby
+                    if len(ecomembers) != 0:
+                        members = ecomembers
+                    if len(ecobelongtos) != 0:
+                        belongtos = ecobelongtos
                 #
                 if verbose:
-                    print ("contact = ", contact, "links = ", links, "vendor = ", vendor, "controls = ", controls, "ecocntrldby = ", cntrldby, "members = ", members, "belongtos = ", belongtos)
+                    print ("contact = ", contact, "links = ", links, "vendor = ", vendor, "controls = ", controls, "cntrldby = ", cntrldby, "members = ", members, "belongtos = ", belongtos)
             #
             # If force belongto journallist.net append it to the belongtos list if not already present
             #
             if forcejl and "https://www.journallist.net/" not in belongtos:
                 belongtos.append("https://www.journallist.net/")
             #
+            # If force belongto append URL to the belongtos list if not already present 
+            #
+            print ("belongto = ", belongto, "belongtos = ", belongtos, "not in = ", belongto not in belongtos)
+            if (belongto != "" and belongto != "None" and belongto not in belongtos):
+                belongtos.append(belongto)
+            #
             # If force controlledby set ctrldby
             #
-            if (controlledby != "") and cntrldby == "":
+            if (controlledby != "" and controlledby != "None"):
                 cntrldby = controlledby
             #
             # Open trust.txt file, write contents, and close it.
@@ -1125,7 +1167,7 @@ for url in lines:
                 #
                 # Write socials
                 #
-                for i in range(1,maxsocial):
+                for i in range(0,maxsocial-1):
                     if i < len(links):
                         csvfile.write ("," + links[i])
                     else:
@@ -1133,7 +1175,7 @@ for url in lines:
                 #
                 # Write belongtos
                 #
-                for i in range(1,maxbelongto):
+                for i in range(0,maxbelongto-1):
                     if i < len(belongtos):
                         csvfile.write ("," + belongtos[i])
                     else:
@@ -1141,7 +1183,7 @@ for url in lines:
                 #
                 # Write controls
                 #
-                for i in range(1,maxcontrol):
+                for i in range(0,maxcontrol-1):
                     if i < len(controls):
                         csvfile.write ("," + controls[i])
                     else:
@@ -1149,7 +1191,7 @@ for url in lines:
                 #
                 # Write members
                 #
-                for i in range(1,maxmember):
+                for i in range(0,maxmember-1):
                     if i < len(members):
                         csvfile.write ("," + members[i])
                     else:
