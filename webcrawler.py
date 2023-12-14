@@ -1,4 +1,4 @@
-#!/usr/local/bin/python3.10
+#!/usr/local/bin/python3.12
 #
 # JournalList.net webcrawler to recursively find all trust.txt files referenced by "member", 
 # "belongto", "vendor", "consumer", "control", and "controlledby" entries.
@@ -50,8 +50,11 @@ from urllib.parse import urlparse
 # Skip any well-known resources that begin with any of the following strings
 #
 well_known_skip =[
+    "api",
     "assets",
+    "cdn01",
     "m",
+    "posting",
     "storyconsole"
 ]
 #
@@ -340,14 +343,16 @@ def process (srcdomain, attribute, refdomain, dirname, csvfile, redirfile, logfi
     symattr = "member,belongto,control,controlledby,vendor,customer"
     asymattr = "social,contact,disclosure"
     #
-    # Only process the refdomain if the attribute is a symmetric attribute and the srcdomain is not the same as the refdomain
     #
-    if (attribute == "self") or ((attribute in symattr) and (srcdomain != refdomain)):
-        #
-        # Set srcurl and refurl to standard format (https://www.domain/, e.g., https://www.journallist.net/)
-        #
-        srcurl = "https://www." + srcdomain + "/"
-        refurl = "https://www." + refdomain + "/"
+    # Set srcurl and refurl to standard format (https://www.domain/, e.g., https://www.journallist.net/)
+    #
+    srcurl = "https://www." + srcdomain + "/"
+    refurl = "https://www." + refdomain + "/"
+    # print ("srcdomain = ", srcdomain, "attribute = ", attribute, "refdomain = ", refdomain)
+    #
+    # Only process the refdomain if the attribute is a symmetric attribute and the srcdomain is not the same as the refdomain and the refdomain is not ""
+    #
+    if (attribute == "self") or ((attribute in symattr) and (srcdomain != refdomain) and (refdomain != "")):
         #
         # Set filename to standard format (www.domain-trust.txt, e.g., www.journallist.net-trust.txt)
         #
@@ -405,36 +410,47 @@ def process (srcdomain, attribute, refdomain, dirname, csvfile, redirfile, logfi
                             # Normalize the referenced url
                             #
                             domain, subdomain, subdir = normalize(attr[1])
+                            # print ("url = ", attr[1], "domain = ", domain, "subdomain = ", subdomain, "subdir = ", subdir, "refdomain = ", refdomain)
                             #
-                            # If subdomain is empty, begin url with "www", if subdomain begins with "www" then use subdomain, else use subdomain
+                            # If the domain is empty then referenced url is not a valid url, skip this attribute
                             #
-                            if subdomain == "":
-                                url = "https://www"
-                            elif subdomain.startswith("www"):
-                                url = "https://" + subdomain
-                            else:
-                                url = "https://" + subdomain
-                            #
-                            # Add domain to url
-                            #
-                            url = url + "." + domain
-                            #
-                            # Add subdirectory if not empty
-                            #
-                            if subdir != "":
-                                if subdir.startswith("/"):
-                                    url = url + subdir
+                            if (domain != ""):
+                                #
+                                # If subdomain is empty, begin url with "www", if subdomain begins with "www" then use subdomain, else use subdomain
+                                #
+                                if subdomain == "":
+                                    url = "https://www"
+                                elif subdomain.startswith("www"):
+                                    url = "https://" + subdomain
                                 else:
-                                    url = url + "/" + subdir
-                            #
-                            # Add trailing "/" if not present
-                            #
-                            if not url.endswith("/"):
-                                url = url + "/"
-                            #
-                            # Write the tuple [srcrul, attribute, refurl] in standard format to the .csv file
-                            #
-                            write_csv (refurl, attr[0], url , csvfile)
+                                    url = "https://" + subdomain
+                                #
+                                # Add domain to url
+                                #
+                                url = url + "." + domain
+                                #
+                                # Add subdirectory if not empty
+                                #
+                                if subdir != "":
+                                    if subdir.startswith("/"):
+                                        url = url + subdir
+                                    else:
+                                        url = url + "/" + subdir
+                                #
+                                # Add trailing "/" if not present
+                                #
+                                if not url.endswith("/"):
+                                    url = url + "/"
+                                #
+                                # Write the tuple [srcrul, attribute, refurl] in standard format to the .csv file
+                                #
+                                write_csv (refurl, attr[0], url , csvfile)
+                            else:
+                                #
+                                # If domain is "", then write invalid url error
+                                #
+                                write_error (refurl, attr[0], url, "Invalid url" + attr[1] + "at line " + str(linenum), errfile)
+                                #
                         elif (attr[0] in asymattr):
                             attrcount += 1
                             #
@@ -449,7 +465,7 @@ def process (srcdomain, attribute, refdomain, dirname, csvfile, redirfile, logfi
                             write_error (refurl, attr[0], url, "Invalid attribute" + attr[0] + "at line " + str(linenum), errfile)
                             logfile.write ("Invalid attribute" + attr[0] + "at line " + str(linenum) + "\n")
                         #
-                        # If attribute is a symmetric one, process the referenced domain
+                        # If attribute is a symmetric one and the domain is not "", process the referenced domain
                         #
                         if attr[0] in symattr:
                             #
@@ -475,6 +491,19 @@ def process (srcdomain, attribute, refdomain, dirname, csvfile, redirfile, logfi
             # Log url as previously fetched
             #
             logfile.write ("END: " + refurl + "trust.txt previously fetched\n")
+            #
+    else:
+        if (refdomain == ""):
+            #
+            # Log invalid referenced url
+            #
+            logfile.write("Invalid url referenced by: " + srcurl + " with attribute " + attribute + "=\n")
+        else:
+            #
+            # Log self referential symmetric attributes
+            #
+            logfile.write("Self referential symmetric attribute: " + attribute + "\n")
+        #
     return
 #
 # Main program
@@ -528,10 +557,6 @@ if (not os.path.isdir(dirname)):
     csvfile.write ("srcurl,attr,refurl\n")
     redirfile.write("srcurl,redirect\n")
     errfile.write ("srcurl,attr,refurl,error\n")
-    #
-    # Normalize the root url
-    #
-    path = normalize(rooturl)
     #
     # Process the root url
     #
