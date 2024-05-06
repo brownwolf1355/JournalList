@@ -315,7 +315,7 @@ def fetchurl(url):
 #
 # write_trust_txt (website, contact, links, vendor, copyright, cntrldby, csvfile) - Write the trust.txt file.
 #
-def write_trust_txt (name, website, contact, links, vendor, copyright, controls, cntrldby, members, belongtos, output):
+def write_trust_txt (name, website, contact, links, vendor, copyright, controls, cntrldby, members, belongtos, dta, output):
     if verbose:
         print ("write_trust_txt:name = ", name, "website = ", website, "contact= ", contact, "links = ", links, "vendor = ", vendor, "copyright = ", copyright, " controls = ", controls, "cntrldby = ", cntrldby, "members = ", members, "belongtos = ", belongtos)
     #
@@ -329,6 +329,7 @@ def write_trust_txt (name, website, contact, links, vendor, copyright, controls,
     social = "# NAME social networks\n#\n"
     vndr = "#\n# NAME vendors\n#\n"
     cntct = "#\n# NAME contact info\n#\n"
+    datatrainingallowed = "#\n# NAME AI disclosure\n#\n"
     #
     # Write header
     #
@@ -392,6 +393,14 @@ def write_trust_txt (name, website, contact, links, vendor, copyright, controls,
         output.write ("contact=" + contact + "\n")
     else:
         output.write ("# contact=\n")
+    #
+    # Write "datatrainingallowed="
+    #
+    output.write (datatrainingallowed.replace("NAME",name))
+    if dta != "" and dta != "None" and (dta == "yes" or dta == "no"):
+        output.write ("datatrainingallowed=" + dta + "\n")
+    else:
+        output.write ("# datatrainingallowed=\n")
     #
     # Write copyright if present
     #
@@ -748,7 +757,6 @@ def process (url,dirname):
             if (text.find(error) >= 0):
                 skip = True
                 print ("Error for ", url, ":", error)
-                break
         #
         # Check for domain registrar redirects
         #
@@ -793,6 +801,7 @@ def process (url,dirname):
                     break
             if blocked:
                 name = "Site Blocked"
+                print ("Site Blocked: ", url)
             #
             if verbose:
                 print ("name = ", name)
@@ -974,6 +983,7 @@ parser.add_argument("-v", "--verbose", help="increase output verbosity", action=
 parser.add_argument("-s", "--save", help="save HTML from the website", action="store_true")
 parser.add_argument("-r", "--redo", help="redo generation of trust.txt files from HTML previously saved with -s option", action="store_true")
 parser.add_argument("-j", "--forcejl", help="force belongto=https://www.journallist.net/", action="store_true")
+parser.add_argument("-a", "--ai", help="datatrainingallowed attribute, AI =  [\"yes\"|\"no\"]", type=str, action="store")
 parser.add_argument("-c", "--curl", help="force controlledby=CURL", type=str, action="store")
 parser.add_argument("-b", "--burl", help="force belongto=BURL", type=str, action="store")
 parser.add_argument("-d", "--dirname", help="name of directory to write output, defualt to current directory", type=str, action="store")
@@ -995,6 +1005,7 @@ controlledby = str(args.curl)
 belongto = str(args.burl)
 dirname = str(args.dirname)
 webcrawl = str(args.webcrawl)
+dta = str(args.ai)
 url_or_filename = str(args.url_or_filename)
 #
 if (verbose):
@@ -1073,6 +1084,14 @@ if csv:
 for url in lines:
     #
     url = url.strip("\n")
+    #
+    # Check for soical network urls
+    #
+    for social in socials:
+        if social in url:
+            print ("Social network url = ", url)
+            url = ""
+    #
     if url.startswith("http"):
         #
         # Reset results
@@ -1142,7 +1161,7 @@ for url in lines:
             #
             # If force belongto append URL to the belongtos list if not already present 
             #
-            print ("belongto = ", belongto, "belongtos = ", belongtos, "not in = ", belongto not in belongtos)
+            # print ("belongto = ", belongto, "belongtos = ", belongtos, "not in = ", belongto not in belongtos)
             if (belongto != "" and belongto != "None" and belongto not in belongtos):
                 belongtos.append(belongto)
             #
@@ -1154,7 +1173,7 @@ for url in lines:
             # Open trust.txt file, write contents, and close it.
             #
             trustfile = open(filename, "w")
-            write_trust_txt(name, rurl, contact, links, vendor, copyright, controls, cntrldby, members, belongtos, trustfile)
+            write_trust_txt(name, rurl, contact, links, vendor, copyright, controls, cntrldby, members, belongtos, dta, trustfile)
             trustfile.close()
             #
             # If processing a list of urls, write to output.csv file

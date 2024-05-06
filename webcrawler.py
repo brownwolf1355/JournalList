@@ -200,7 +200,10 @@ def fetchurl(url):
             # If the content is not plaintext, log an error.
             #
             if not success:
-                error = "Content type: " + r.headers['Content-Type']
+                try:
+                    error = "Content type: " + r.headers['Content-Type']
+                except:
+                    error = "Invalid content type"
     #
     # Return results
     #
@@ -341,7 +344,7 @@ def process (srcdomain, attribute, refdomain, dirname, csvfile, redirfile, logfi
     # Specify symmetric and asymmetric attributes
     #
     symattr = "member,belongto,control,controlledby,vendor,customer"
-    asymattr = "social,contact,disclosure"
+    asymattr = "social,contact,disclosure,datatrainingallowed"
     #
     #
     # Set srcurl and refurl to standard format (https://www.domain/, e.g., https://www.journallist.net/)
